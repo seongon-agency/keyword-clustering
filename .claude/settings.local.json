@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(venvScriptsactivate)",
+      "Bash(venv/Scripts/python.exe -m streamlit:*)",
+      "Bash(venv/Scripts/pip.exe install:*)",
+      "Bash(README.md)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

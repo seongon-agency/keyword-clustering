@@ -1,46 +1,92 @@
-# keyword_clustering_easy_demo
-This repository contains an advanced Python script designed for keyword clustering using state-of-the-art Natural Language Processing (NLP) techniques.
-The script is designed for professionals in SEO, data science, and machine learning who need efficient and scalable solutions for text clustering and analysis.
+# < Premium Vietnamese Keyword Clustering
 
-The script includes functionalities such as SentenceTransformer for generating semantic embeddings, BERTopic for advanced topic modeling and clustering, and DataFrame integration for processing and appending cluster labels. Optional preprocessing techniques like lemmatization and stemming are also supported for improving clustering accuracy. Additionally, the script is optimized for handling large datasets by dividing data into blocks, ensuring efficient memory usage.
+AI-powered keyword clustering using OpenAI embeddings and GPT-4o for best-in-class Vietnamese and English keyword analysis.
 
-Key features of the script include embedding generation with support for various models, dynamic topic labeling for enhanced interpretability, and seamless output to Excel files. The script is particularly effective for Italian and multilingual datasets, making it versatile for various professional use cases.
+## ¡ Quick Start
 
-Requirements for running the script include Python 3.7+, along with libraries like pandas, numpy, sentence-transformers, bertopic, and openpyxl. Optional tools like spaCy or NLTK can also be utilized for preprocessing tasks.
+### 1. Run the App
+Double-click `run.bat` or run:
+```bash
+venv\Scripts\python.exe -m streamlit run app.py
+```
 
-To use this script, users need to prepare a pandas DataFrame with a column containing the keywords or text to be clustered. After configuring the desired SentenceTransformer model and BERTopic parameters, the script can be executed to retrieve clustering results in an Excel file.
+### 2. Open Browser
+Navigate to: **http://localhost:8501**
 
-This repository offers a powerful solution for tasks such as keyword clustering for SEO analysis, semantic topic modeling for research, intent analysis in multilingual datasets, and preprocessing for machine learning models. By leveraging the latest advancements in NLP, the script provides an efficient and scalable approach to text clustering and topic analysis.
+### 3. Add API Key
+Place your OpenAI API key in `.env` file:
+```
+OPENAI_API_KEY=sk-proj-...your-key-here...
+```
+Get your key at: https://platform.openai.com/api-keys
 
-## Features
-Generate semantic embeddings using SentenceTransformer with support for multilingual and Italian-specific models.
-Perform topic modeling and clustering with BERTopic, including dynamic topic labeling for better interpretability.
-Integrate seamlessly with pandas DataFrames for processing and appending cluster labels.
-Optimize memory usage and handle large datasets by processing in blocks.
-Export clustering results directly to Excel files.
+### 4. Upload & Cluster
+- Upload Excel file
+- Select sheet and column
+- Click "Start Clustering"
+- Download results!
 
-## Requirements
-Python 3.7 or higher
+## <¯ Features
 
-Libraries:
-pandas
-numpy
-sentence-transformers
-bertopic
-openpyxl
-Optional: spaCy or NLTK for preprocessing
+- **OpenAI text-embedding-3-large**: State-of-the-art 3072-dimensional embeddings
+- **GPT-4o**: Intelligent, descriptive cluster labels
+- **Vietnamese Support**: Full word segmentation and diacritics preservation
+- **Zero Outliers**: Automatic outlier reassignment to nearest clusters
+- **Interactive Visualizations**: 2D cluster maps, distributions, and labels
 
-## How to Use
-Install the required libraries using pip install -r requirements.txt.
-Prepare a pandas DataFrame with a column named Cleaned containing the text or keywords to cluster.
-Configure the SentenceTransformer model and BERTopic parameters in the script.
-Execute the script to generate clustering results. Results will be saved as an Excel file.
+## =° Cost
 
-## Applications
-Keyword clustering for SEO analysis
-Semantic topic modeling for research
-Intent analysis in multilingual datasets
-Preprocessing for machine learning models
+Approximately **$0.50-$2.00** per 1,000 keywords
+- Embeddings: ~$0.10-0.50
+- GPT-4o labels: ~$1.00
 
-## Acknowledgments
-This script leverages cutting-edge NLP libraries like sentence-transformers and BERTopic to provide a robust and scalable solution for clustering text data. It is optimized for professional use cases, especially in Italian and multilingual contexts.
+## =Ê Output
+
+Your Excel file will include:
+- **keywords**: Original text (Vietnamese diacritics preserved)
+- **segmented**: Word-segmented version (Vietnamese only)
+- **Cluster**: AI-generated cluster ID
+- **Cluster Label**: GPT-4o descriptive label
+
+## =à Technical Stack
+
+- **Embeddings**: OpenAI text-embedding-3-large
+- **Clustering**: HDBSCAN (density-based, automatic detection)
+- **Labeling**: GPT-4o
+- **Vietnamese NLP**: underthesea word segmentation
+- **Visualization**: Plotly + UMAP
+
+## =Ý Languages Supported
+
+- <û<ó **Vietnamese**: Full support with word segmentation
+- <ì<ç **English**: Full support
+
+## =' Requirements
+
+- Python 3.12
+- OpenAI API key
+- Virtual environment (included in `venv/`)
+
+## =Ú Documentation
+
+- `SESSION_LOG.md`: Complete development log and technical details
+- `CLAUDE.md`: Instructions for Claude Code
+
+## = Issues?
+
+If you encounter problems:
+1. Ensure you're running from virtual environment
+2. Check API key is in `.env` file
+3. Verify internet connection for API calls
+4. Check `SESSION_LOG.md` for troubleshooting
+
+## =€ Recent Updates
+
+**2025-11-24**:
+-  Removed all free-mode code (premium-only)
+-  Implemented outlier reduction (relaxed HDBSCAN + reassignment)
+-  Expected outliers: 40% ’ 0%
+
+---
+
+**Built with Streamlit " Powered by OpenAI & GPT-4o**
