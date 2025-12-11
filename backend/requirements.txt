@@ -1,0 +1,22 @@
+# FastAPI backend requirements
+# Uses the same core libraries as the Streamlit app
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+
+# Core clustering (same as main app)
+pandas>=2.0.0
+numpy>=1.24.0
+hdbscan>=0.8.33
+scikit-learn>=1.3.0
+umap-learn>=0.5.3
+
+# OpenAI API
+openai>=1.0.0
+
+# Vietnamese NLP
+underthesea>=6.8.0
+
+# Environment
+python-dotenv>=1.0.0

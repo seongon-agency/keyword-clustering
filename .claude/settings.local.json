@@ -5,7 +5,8 @@
       "Bash(venvScriptsactivate)",
       "Bash(venv/Scripts/python.exe -m streamlit:*)",
       "Bash(venv/Scripts/pip.exe install:*)",
-      "Bash(README.md)"
+      "Bash(README.md)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []
