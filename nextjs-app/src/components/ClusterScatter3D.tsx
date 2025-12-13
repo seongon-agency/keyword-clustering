@@ -130,8 +130,8 @@ export default function ClusterScatter3D({
       bordercolor: isDark ? "#30363d" : "#e2e8f0",
       borderwidth: 1,
       font: { size: 10, color: isDark ? "#e6edf3" : "#1f2328" },
-      itemclick: "toggle",
-      itemdoubleclick: "toggleothers",
+      itemclick: "toggle" as const,
+      itemdoubleclick: "toggleothers" as const,
     },
     hovermode: "closest" as const,
     modebar: {
