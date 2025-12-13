@@ -138,7 +138,7 @@ export default function ClusterScatter3D({
       bgcolor: isDark ? "rgba(22, 27, 34, 0.8)" : "rgba(248, 250, 252, 0.8)",
       color: isDark ? "#8b949e" : "#94a3b8",
       activecolor: "#6366f1",
-      orientation: "v",
+      orientation: "v" as const,
     },
   }), [isDark]);
 
