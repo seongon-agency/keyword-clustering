@@ -17,5 +17,5 @@ openai>=1.0.0
 # Environment
 python-dotenv>=1.0.0
 
-# Vietnamese NLP (optional - install separately if needed)
-# underthesea>=6.8.0
+# Vietnamese NLP
+underthesea>=6.8.0
