@@ -46,7 +46,8 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT=3000
+# Railway sets PORT dynamically, default to 3000 for local
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+# Use shell form to allow $PORT expansion
+CMD node server.js
