@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 import {
   ScatterChart,
   Scatter,
@@ -10,11 +10,10 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
-  ReferenceArea,
 } from "recharts";
 import { ZoomIn, ZoomOut, RotateCcw, Eye, EyeOff } from "lucide-react";
 
-interface ClusterScatterProps {
+interface ClusterScatterInteractiveProps {
   embeddings2D: [number, number][];
   clusters: number[];
   keywords: string[];
@@ -37,18 +36,16 @@ interface ChartDataPoint {
   label: string;
 }
 
-export default function ClusterScatter({
+export default function ClusterScatterInteractive({
   embeddings2D,
   clusters,
   keywords,
   clusterLabels,
   selectedCluster,
   onClusterSelect,
-}: ClusterScatterProps) {
+}: ClusterScatterInteractiveProps) {
   const [hiddenClusters, setHiddenClusters] = useState<Set<number>>(new Set());
   const [zoomArea, setZoomArea] = useState<{ x1: number; x2: number; y1: number; y2: number } | null>(null);
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
 
   const chartData = useMemo(() => {
     return embeddings2D.map((coord, i) => ({
@@ -91,7 +88,7 @@ export default function ClusterScatter({
     };
   }, [chartData, zoomArea]);
 
-  // Filter data based on hidden clusters and zoom
+  // Filter data based on hidden clusters
   const filteredData = useMemo(() => {
     return chartData.filter((d) => !hiddenClusters.has(d.cluster));
   }, [chartData, hiddenClusters]);
@@ -112,9 +109,7 @@ export default function ClusterScatter({
     }
   };
 
-  const resetZoom = () => {
-    setZoomArea(null);
-  };
+  const resetZoom = () => setZoomArea(null);
 
   const zoomIn = () => {
     const currentDomain = domain;
@@ -156,15 +151,15 @@ export default function ClusterScatter({
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-white shadow-xl rounded-lg p-3 border border-slate-200 max-w-xs z-50">
-          <p className="font-medium text-slate-800 break-words">{data.keyword}</p>
+        <div className="bg-canvas-default shadow-xl rounded-lg p-3 border border-default max-w-xs z-50">
+          <p className="font-medium text-fg-default break-words">{data.keyword}</p>
           <div className="flex items-center gap-2 mt-2">
             <span
               className="w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: COLORS[data.cluster % COLORS.length] }}
             />
-            <p className="text-sm text-slate-500">
-              Cluster {data.cluster}: {data.label}
+            <p className="text-sm text-fg-muted">
+              {data.label}
             </p>
           </div>
         </div>
@@ -183,32 +178,32 @@ export default function ClusterScatter({
   }, [clusters]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button
             onClick={zoomIn}
-            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+            className="gh-btn gh-btn-sm"
             title="Zoom In"
           >
-            <ZoomIn className="w-4 h-4" />
+            <ZoomIn className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={zoomOut}
-            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+            className="gh-btn gh-btn-sm"
             title="Zoom Out"
           >
-            <ZoomOut className="w-4 h-4" />
+            <ZoomOut className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={resetZoom}
-            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+            className="gh-btn gh-btn-sm"
             title="Reset View"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
-          <div className="h-6 w-px bg-slate-200 mx-1" />
+          <div className="h-5 w-px bg-[var(--color-border-muted)] mx-1" />
           <button
             onClick={() => {
               if (hiddenClusters.size > 0) {
@@ -217,51 +212,53 @@ export default function ClusterScatter({
                 setHiddenClusters(new Set(uniqueClusters));
               }
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm transition-colors"
+            className="gh-btn gh-btn-sm"
           >
             {hiddenClusters.size > 0 ? (
               <>
-                <Eye className="w-4 h-4" />
+                <Eye className="w-3.5 h-3.5" />
                 Show All
               </>
             ) : (
               <>
-                <EyeOff className="w-4 h-4" />
+                <EyeOff className="w-3.5 h-3.5" />
                 Hide All
               </>
             )}
           </button>
         </div>
-        <div className="text-sm text-slate-500">
-          Showing {filteredData.length.toLocaleString()} of {chartData.length.toLocaleString()} points
+        <div className="text-xs text-fg-muted">
+          {filteredData.length.toLocaleString()} of {chartData.length.toLocaleString()} points
         </div>
       </div>
 
       {/* Chart */}
-      <div className="h-[500px] bg-slate-50 rounded-xl p-2">
+      <div className="h-[380px] bg-canvas-subtle rounded-md p-2">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
             <XAxis
               type="number"
               dataKey="x"
               domain={domain.x}
-              tick={{ fill: "#64748b", fontSize: 11 }}
-              axisLine={{ stroke: "#e2e8f0" }}
-              tickLine={{ stroke: "#e2e8f0" }}
-              name="UMAP 1"
+              tick={false}
+              axisLine={false}
+              tickLine={false}
             />
             <YAxis
               type="number"
               dataKey="y"
               domain={domain.y}
-              tick={{ fill: "#64748b", fontSize: 11 }}
-              axisLine={{ stroke: "#e2e8f0" }}
-              tickLine={{ stroke: "#e2e8f0" }}
-              name="UMAP 2"
+              tick={false}
+              axisLine={false}
+              tickLine={false}
             />
-            <ZAxis range={[30, 60]} />
+            <ZAxis range={[20, 40]} />
             <Tooltip content={<CustomTooltip />} />
-            <Scatter name="Keywords" data={filteredData}>
+            <Scatter
+              name="Keywords"
+              data={filteredData}
+              isAnimationActive={false}
+            >
               {filteredData.map((entry, index) => {
                 const isSelected = selectedCluster === entry.cluster;
                 const isOtherSelected = selectedCluster !== null && selectedCluster !== entry.cluster;
@@ -285,10 +282,10 @@ export default function ClusterScatter({
 
       {/* Interactive Legend */}
       <div className="space-y-2">
-        <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-          Clusters (click to highlight, double-click to toggle)
+        <div className="text-xs font-medium text-fg-muted uppercase tracking-wide">
+          Clusters (click to highlight, double-click to hide)
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto p-1 -m-1">
           {uniqueClusters.map((cluster) => {
             const isHidden = hiddenClusters.has(cluster);
             const isSelected = selectedCluster === cluster;
@@ -299,61 +296,29 @@ export default function ClusterScatter({
                 key={cluster}
                 onClick={() => handleLegendClick(cluster)}
                 onDoubleClick={() => toggleCluster(cluster)}
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-all
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all
                           ${isHidden ? "opacity-40" : ""}
                           ${isSelected
-                            ? "bg-slate-200 ring-2 ring-indigo-400 ring-offset-1"
-                            : "bg-slate-100 hover:bg-slate-200"
+                            ? "bg-[var(--color-neutral-muted)] ring-2 ring-[var(--color-accent-emphasis)] ring-offset-1 ring-offset-[var(--color-canvas-default)]"
+                            : "bg-[var(--color-canvas-subtle)] hover:bg-[var(--color-neutral-muted)]"
                           }`}
               >
                 <span
-                  className={`w-3 h-3 rounded-full transition-transform ${isSelected ? "scale-125" : ""}`}
+                  className={`w-2.5 h-2.5 rounded-full transition-transform ${isSelected ? "scale-125" : ""}`}
                   style={{
                     backgroundColor: COLORS[cluster % COLORS.length],
                     opacity: isHidden ? 0.4 : 1,
                   }}
                 />
-                <span className={`text-slate-700 truncate max-w-[120px] ${isHidden ? "line-through" : ""}`}>
+                <span className={`text-fg-default truncate max-w-[100px] ${isHidden ? "line-through" : ""}`}>
                   {clusterLabels[cluster] || `Cluster ${cluster}`}
                 </span>
-                <span className="text-slate-400 text-xs">({count})</span>
+                <span className="text-fg-muted">({count})</span>
               </button>
             );
           })}
         </div>
       </div>
-
-      {/* Selected cluster info */}
-      {selectedCluster !== null && selectedCluster !== undefined && (
-        <div
-          className="p-3 rounded-lg border-2 animate-fade-in"
-          style={{
-            borderColor: COLORS[selectedCluster % COLORS.length],
-            backgroundColor: `${COLORS[selectedCluster % COLORS.length]}10`,
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span
-                className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: COLORS[selectedCluster % COLORS.length] }}
-              />
-              <span className="font-medium text-slate-800">
-                {clusterLabels[selectedCluster] || `Cluster ${selectedCluster}`}
-              </span>
-              <span className="text-slate-500">
-                ({clusterCounts[selectedCluster] || 0} keywords)
-              </span>
-            </div>
-            <button
-              onClick={() => onClusterSelect?.(null)}
-              className="text-sm text-slate-500 hover:text-slate-700"
-            >
-              Clear selection
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
