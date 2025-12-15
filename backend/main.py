@@ -210,18 +210,69 @@ def merge_similar_clusters(embeddings: np.ndarray, clusters: np.ndarray, similar
     return np.array([mapping[c] for c in new_clusters])
 
 
+def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10) -> np.ndarray:
+    """
+    Attempt to subdivide a single cluster into smaller sub-clusters.
+    Returns cluster labels (0, 1, 2, ...) or all zeros if can't split.
+    """
+    n_samples = len(embeddings)
+    if n_samples < min_cluster_size * 2:
+        return np.zeros(n_samples, dtype=int)
+
+    # Use smaller n_neighbors for subdivision to find finer structure
+    n_components = min(30, n_samples - 1)
+    n_neighbors = min(8, n_samples - 1)
+
+    try:
+        umap_reducer = UMAP(
+            n_components=n_components,
+            n_neighbors=n_neighbors,
+            min_dist=0.0,
+            metric='euclidean',  # Already reduced, use euclidean
+            random_state=42,
+            n_jobs=1
+        )
+        reduced = umap_reducer.fit_transform(embeddings)
+
+        sub_clusterer = hdbscan.HDBSCAN(
+            min_cluster_size=min_cluster_size,
+            min_samples=2,
+            cluster_selection_epsilon=0.0,
+            cluster_selection_method='eom',
+            metric='euclidean'
+        )
+        sub_labels = sub_clusterer.fit_predict(reduced)
+
+        # Check if we actually got multiple clusters (not just one + outliers)
+        unique_labels = set(sub_labels) - {-1}
+        if len(unique_labels) >= 2:
+            # Reassign outliers
+            if np.sum(sub_labels == -1) > 0:
+                sub_labels = reassign_outliers_to_nearest_cluster(reduced, sub_labels)
+            return sub_labels
+    except Exception as e:
+        print(f"[DEBUG] Subdivision failed: {e}")
+
+    return np.zeros(n_samples, dtype=int)
+
+
 def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     """
     Cluster embeddings using HDBSCAN with UMAP dimensionality reduction.
+    Recursively subdivides oversized clusters for balanced results.
     """
     n_samples = len(embeddings)
 
-    # Reduce dimensions with UMAP first (critical for high-dim embeddings)
-    # Lower n_neighbors preserves more local structure for finer clusters
-    n_components = min(50, n_samples - 1)  # UMAP target dimensions
+    # Max cluster size threshold - clusters larger than this will be subdivided
+    max_cluster_size = max(300, n_samples // 10)  # 10% of dataset or 300, whichever is larger
+    min_cluster_size = max(5, n_samples // 500)  # 0.2% of dataset
+    min_cluster_size = min(min_cluster_size, 15)  # Cap at 15
+
+    # Reduce dimensions with UMAP first
+    n_components = min(50, n_samples - 1)
     umap_reducer = UMAP(
         n_components=n_components,
-        n_neighbors=10,  # Lower for more local structure (was 15)
+        n_neighbors=10,
         min_dist=0.0,
         metric='cosine',
         random_state=42,
@@ -229,15 +280,11 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     )
     reduced_embeddings = umap_reducer.fit_transform(embeddings)
 
-    # Balanced min_cluster_size for moderate granularity
-    min_cluster_size = max(5, n_samples // 300)  # ~0.33% of dataset
-    min_cluster_size = min(min_cluster_size, 25)  # Cap at 25
-
     hdbscan_params = {
         'min_cluster_size': min_cluster_size,
         'min_samples': 2,
-        'cluster_selection_epsilon': 0.05,  # Small epsilon to encourage more splits
-        'cluster_selection_method': 'eom',  # Back to EOM for balanced clusters
+        'cluster_selection_epsilon': 0.0,
+        'cluster_selection_method': 'eom',
         'metric': 'euclidean',
         'core_dist_n_jobs': -1
     }
@@ -245,18 +292,62 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     clusterer = hdbscan.HDBSCAN(**hdbscan_params)
     all_clusters = clusterer.fit_predict(reduced_embeddings)
 
-    print(f"[DEBUG] HDBSCAN found {len(np.unique(all_clusters))} clusters, outliers: {np.sum(all_clusters == -1)}/{n_samples}")
+    print(f"[DEBUG] HDBSCAN initial: {len(np.unique(all_clusters))} clusters, outliers: {np.sum(all_clusters == -1)}/{n_samples}")
 
-    # Reassign outliers to nearest cluster (using reduced embeddings for consistency)
+    # Reassign outliers first
     if np.sum(all_clusters == -1) > 0:
         all_clusters = reassign_outliers_to_nearest_cluster(reduced_embeddings, all_clusters)
+
+    # Recursively subdivide oversized clusters
+    max_iterations = 5  # Prevent infinite loops
+    for iteration in range(max_iterations):
+        cluster_sizes = {}
+        for c in np.unique(all_clusters):
+            cluster_sizes[c] = np.sum(all_clusters == c)
+
+        oversized = [c for c, size in cluster_sizes.items() if size > max_cluster_size]
+        if not oversized:
+            break
+
+        print(f"[DEBUG] Iteration {iteration + 1}: Subdividing {len(oversized)} oversized clusters")
+
+        next_cluster_id = max(all_clusters) + 1
+        new_clusters = all_clusters.copy()
+
+        for cluster_id in oversized:
+            cluster_mask = all_clusters == cluster_id
+            cluster_indices = np.where(cluster_mask)[0]
+            cluster_embeddings = reduced_embeddings[cluster_indices]
+
+            sub_labels = subdivide_cluster(cluster_embeddings, min_cluster_size=min_cluster_size)
+
+            unique_sub = set(sub_labels)
+            if len(unique_sub) >= 2:
+                # Map sub-cluster labels to new global cluster IDs
+                for sub_id in unique_sub:
+                    if sub_id == 0:
+                        # Keep first sub-cluster with original ID
+                        continue
+                    sub_mask = sub_labels == sub_id
+                    global_indices = cluster_indices[sub_mask]
+                    new_clusters[global_indices] = next_cluster_id
+                    next_cluster_id += 1
+
+                print(f"[DEBUG] Cluster {cluster_id} ({len(cluster_indices)} pts) -> {len(unique_sub)} sub-clusters")
+
+        all_clusters = new_clusters
+
+    # Renumber clusters to be consecutive
+    unique_clusters = sorted(np.unique(all_clusters))
+    mapping = {old: new for new, old in enumerate(unique_clusters)}
+    all_clusters = np.array([mapping[c] for c in all_clusters])
 
     num_clusters = len(np.unique(all_clusters))
     print(f"[DEBUG] Final: {num_clusters} clusters")
 
     # Light merge only if too many clusters
-    if num_clusters > 40:  # Raised threshold (was 20) to allow more clusters
-        all_clusters = merge_similar_clusters(reduced_embeddings, all_clusters, similarity_threshold=0.92)  # Stricter merge (was 0.90)
+    if num_clusters > 50:
+        all_clusters = merge_similar_clusters(reduced_embeddings, all_clusters, similarity_threshold=0.93)
 
     return all_clusters
 
