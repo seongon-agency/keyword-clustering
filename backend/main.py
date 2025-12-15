@@ -229,15 +229,15 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     )
     reduced_embeddings = umap_reducer.fit_transform(embeddings)
 
-    # Conservative min_cluster_size
-    min_cluster_size = max(5, n_samples // 200)  # 0.5% of dataset
-    min_cluster_size = min(min_cluster_size, 30)  # Cap at 30
+    # Moderate min_cluster_size for finer-grained clusters
+    min_cluster_size = max(5, n_samples // 400)  # 0.25% of dataset (was 0.5%)
+    min_cluster_size = min(min_cluster_size, 20)  # Cap at 20 (was 30)
 
     hdbscan_params = {
         'min_cluster_size': min_cluster_size,
-        'min_samples': 3,
+        'min_samples': 2,  # Lower for more clusters (was 3)
         'cluster_selection_epsilon': 0.0,
-        'cluster_selection_method': 'eom',
+        'cluster_selection_method': 'leaf',  # Finer granularity (was 'eom')
         'metric': 'euclidean',
         'core_dist_n_jobs': -1
     }
@@ -255,8 +255,8 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     print(f"[DEBUG] Final: {num_clusters} clusters")
 
     # Light merge only if too many clusters
-    if num_clusters > 20:
-        all_clusters = merge_similar_clusters(reduced_embeddings, all_clusters, similarity_threshold=0.90)
+    if num_clusters > 40:  # Raised threshold (was 20) to allow more clusters
+        all_clusters = merge_similar_clusters(reduced_embeddings, all_clusters, similarity_threshold=0.92)  # Stricter merge (was 0.90)
 
     return all_clusters
 
