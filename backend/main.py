@@ -223,19 +223,76 @@ def merge_similar_clusters(embeddings: np.ndarray, clusters: np.ndarray, similar
     return np.array([mapping[c] for c in new_clusters])
 
 
+def force_bisect(embeddings: np.ndarray, max_cluster_size: int, min_cluster_size: int = 10) -> np.ndarray:
+    """
+    Recursively bisect clusters using K-Means (k=2) until all are under max_cluster_size.
+    This guarantees balanced splits unlike regular K-Means with higher k.
+    """
+    n_samples = len(embeddings)
+    labels = np.zeros(n_samples, dtype=int)
+
+    if n_samples <= max_cluster_size:
+        return labels
+
+    # Queue of (indices, cluster_id) to process
+    next_cluster_id = 0
+    queue = [(np.arange(n_samples), next_cluster_id)]
+    next_cluster_id += 1
+
+    while queue:
+        indices, current_id = queue.pop(0)
+
+        if len(indices) <= max_cluster_size:
+            labels[indices] = current_id
+            continue
+
+        # Bisect this cluster
+        cluster_embeddings = embeddings[indices]
+
+        # Quick dimensionality reduction for bisection
+        if cluster_embeddings.shape[1] > 10:
+            n_comp = min(10, len(indices) - 1)
+            try:
+                reducer = UMAP(n_components=n_comp, n_neighbors=min(5, len(indices)-1),
+                              min_dist=0.0, metric='euclidean', random_state=42, n_jobs=1)
+                reduced = reducer.fit_transform(cluster_embeddings)
+            except:
+                reduced = cluster_embeddings
+        else:
+            reduced = cluster_embeddings
+
+        kmeans = KMeans(n_clusters=2, random_state=42, n_init=10)
+        bisect_labels = kmeans.fit_predict(reduced)
+
+        # Split into two groups
+        group0_indices = indices[bisect_labels == 0]
+        group1_indices = indices[bisect_labels == 1]
+
+        # Check if split is too imbalanced (one side < min_cluster_size)
+        if len(group0_indices) < min_cluster_size or len(group1_indices) < min_cluster_size:
+            # Can't split further, keep as is
+            labels[indices] = current_id
+            continue
+
+        # Add both groups to queue for further processing
+        queue.append((group0_indices, current_id))
+        queue.append((group1_indices, next_cluster_id))
+        next_cluster_id += 1
+
+    return labels
+
+
 def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10, max_cluster_size: int = 300) -> np.ndarray:
     """
     Attempt to subdivide a single cluster into smaller sub-clusters.
-    Uses HDBSCAN first, falls back to K-Means if HDBSCAN can't split.
-    Returns cluster labels (0, 1, 2, ...) or all zeros if can't split.
+    Uses HDBSCAN first, falls back to recursive bisection if HDBSCAN can't split.
     """
     n_samples = len(embeddings)
     if n_samples < min_cluster_size * 2:
         return np.zeros(n_samples, dtype=int)
 
-    # Use smaller n_neighbors for subdivision to find finer structure
     n_components = min(30, n_samples - 1)
-    n_neighbors = min(5, n_samples - 1)  # Even smaller for finer local structure
+    n_neighbors = min(5, n_samples - 1)
 
     try:
         umap_reducer = UMAP(
@@ -258,7 +315,6 @@ def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10, max_cl
         )
         sub_labels = sub_clusterer.fit_predict(reduced)
 
-        # Check if HDBSCAN found multiple clusters
         unique_labels = set(sub_labels) - {-1}
         if len(unique_labels) >= 2:
             if np.sum(sub_labels == -1) > 0:
@@ -266,17 +322,12 @@ def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10, max_cl
             print(f"[DEBUG] HDBSCAN subdivided into {len(unique_labels)} sub-clusters")
             return sub_labels
 
-        # HDBSCAN failed to split - fall back to K-Means
-        # Calculate optimal k based on cluster size and target max size
-        target_k = max(2, n_samples // max_cluster_size + 1)
-        target_k = min(target_k, n_samples // min_cluster_size)  # Don't create tiny clusters
-        target_k = max(2, min(target_k, 8))  # Between 2 and 8 splits
+        # HDBSCAN failed - use recursive bisection for guaranteed balanced splits
+        print(f"[DEBUG] HDBSCAN couldn't split {n_samples} pts, using recursive bisection")
+        sub_labels = force_bisect(reduced, max_cluster_size, min_cluster_size)
 
-        print(f"[DEBUG] HDBSCAN couldn't split, using K-Means with k={target_k}")
-
-        kmeans = KMeans(n_clusters=target_k, random_state=42, n_init=10)
-        sub_labels = kmeans.fit_predict(reduced)
-
+        num_sub = len(np.unique(sub_labels))
+        print(f"[DEBUG] Bisection created {num_sub} sub-clusters")
         return sub_labels
 
     except Exception as e:
