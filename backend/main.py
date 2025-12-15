@@ -217,11 +217,11 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     n_samples = len(embeddings)
 
     # Reduce dimensions with UMAP first (critical for high-dim embeddings)
-    # This avoids the curse of dimensionality with 1536-dim OpenAI embeddings
+    # Lower n_neighbors preserves more local structure for finer clusters
     n_components = min(50, n_samples - 1)  # UMAP target dimensions
     umap_reducer = UMAP(
         n_components=n_components,
-        n_neighbors=15,
+        n_neighbors=10,  # Lower for more local structure (was 15)
         min_dist=0.0,
         metric='cosine',
         random_state=42,
@@ -229,15 +229,15 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     )
     reduced_embeddings = umap_reducer.fit_transform(embeddings)
 
-    # Moderate min_cluster_size for finer-grained clusters
-    min_cluster_size = max(5, n_samples // 400)  # 0.25% of dataset (was 0.5%)
-    min_cluster_size = min(min_cluster_size, 20)  # Cap at 20 (was 30)
+    # Balanced min_cluster_size for moderate granularity
+    min_cluster_size = max(5, n_samples // 300)  # ~0.33% of dataset
+    min_cluster_size = min(min_cluster_size, 25)  # Cap at 25
 
     hdbscan_params = {
         'min_cluster_size': min_cluster_size,
-        'min_samples': 2,  # Lower for more clusters (was 3)
-        'cluster_selection_epsilon': 0.0,
-        'cluster_selection_method': 'leaf',  # Finer granularity (was 'eom')
+        'min_samples': 2,
+        'cluster_selection_epsilon': 0.05,  # Small epsilon to encourage more splits
+        'cluster_selection_method': 'eom',  # Back to EOM for balanced clusters
         'metric': 'euclidean',
         'core_dist_n_jobs': -1
     }
