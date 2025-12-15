@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import dynamic from "next/dynamic";
-import { Box, ChevronDown, ChevronUp } from "lucide-react";
+import { Box } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 
 // Dynamically import Plotly to avoid SSR issues
@@ -33,7 +33,6 @@ export default function ClusterScatter3D({
 }: ClusterScatter3DProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const [showLegend, setShowLegend] = useState(true);
 
   const traces = useMemo(() => {
     // Guard against undefined data
@@ -87,20 +86,6 @@ export default function ClusterScatter3D({
       };
     });
   }, [embeddings3D, clusters, keywords, clusterLabels, selectedCluster]);
-
-  // Get unique clusters with their counts for the legend
-  const clusterInfo = useMemo(() => {
-    const counts: Record<number, number> = {};
-    clusters.forEach(c => { counts[c] = (counts[c] || 0) + 1; });
-    return Object.entries(counts)
-      .map(([id, count]) => ({
-        id: Number(id),
-        label: clusterLabels[Number(id)] || `Cluster ${id}`,
-        count,
-        color: COLORS[Number(id) % COLORS.length],
-      }))
-      .sort((a, b) => b.count - a.count);
-  }, [clusters, clusterLabels]);
 
   const layout = useMemo(() => ({
     autosize: true,
@@ -160,8 +145,8 @@ export default function ClusterScatter3D({
       <div className="w-full h-[500px] bg-canvas-subtle rounded-md flex items-center justify-center">
         <div className="text-center text-fg-muted">
           <Box className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="text-sm font-medium">3D data not available</p>
-          <p className="text-xs mt-1">Run a new analysis to generate 3D visualization</p>
+          <p className="text-sm font-medium">Không có dữ liệu 3D</p>
+          <p className="text-xs mt-1">Chạy phân tích mới để tạo trực quan hóa 3D</p>
         </div>
       </div>
     );
@@ -196,45 +181,6 @@ export default function ClusterScatter3D({
         />
       </div>
 
-      {/* Legend Section */}
-      <div className="mt-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-fg-muted">{clusterInfo.length} clusters</span>
-          <button
-            onClick={() => setShowLegend(!showLegend)}
-            className="text-xs text-fg-muted hover:text-fg-default transition-colors"
-          >
-            {showLegend ? "Hide" : "Show"}
-          </button>
-        </div>
-        {showLegend && (
-          <div className="flex flex-wrap gap-2">
-            {clusterInfo.map((cluster) => (
-              <button
-                key={cluster.id}
-                onClick={() => onClusterSelect?.(selectedCluster === cluster.id ? null : cluster.id)}
-                className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border transition-all ${
-                  selectedCluster === cluster.id
-                    ? "border-[var(--color-accent-emphasis)] bg-[var(--color-accent-subtle)]"
-                    : selectedCluster !== null
-                    ? "border-transparent bg-canvas-subtle opacity-40 hover:opacity-70"
-                    : "border-transparent bg-canvas-subtle hover:bg-canvas-default"
-                }`}
-                title={`${cluster.label} (${cluster.count} keywords)`}
-              >
-                <span
-                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: cluster.color }}
-                />
-                <span className="text-xs text-fg-default font-medium truncate max-w-[120px]">
-                  {cluster.label}
-                </span>
-                <span className="text-xs text-fg-muted">{cluster.count}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

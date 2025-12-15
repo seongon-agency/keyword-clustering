@@ -64,7 +64,7 @@ const ClusterGrid = memo(function ClusterGrid({
     return Object.entries(data)
       .map(([cluster, kws]) => ({
         cluster: Number(cluster),
-        label: clusterLabels[Number(cluster)] || `Cluster ${cluster}`,
+        label: clusterLabels[Number(cluster)] || `Cụm ${cluster}`,
         keywords: kws,
         count: kws.length,
         percentage: Math.round((kws.length / totalKeywords) * 100),
@@ -111,7 +111,7 @@ const ClusterGrid = memo(function ClusterGrid({
               <button
                 onClick={(e) => copyKeywords(e, item.cluster, item.keywords)}
                 className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-neutral-muted)] text-fg-muted hover:text-fg-default transition-all"
-                title="Copy all keywords"
+                title="Sao chép tất cả từ khóa"
               >
                 {copiedCluster === item.cluster ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
               </button>
@@ -196,7 +196,7 @@ const KeywordTableCompact = memo(function KeywordTableCompact({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-fg-subtle" />
           <input
             type="text"
-            placeholder="Search keywords..."
+            placeholder="Tìm kiếm từ khóa..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="gh-input pl-8 py-1.5 text-xs"
@@ -210,8 +210,8 @@ const KeywordTableCompact = memo(function KeywordTableCompact({
         <table className="gh-table text-xs">
           <thead>
             <tr>
-              <th className="px-3 py-2">Keyword</th>
-              <th className="px-3 py-2 w-20">Cluster</th>
+              <th className="px-3 py-2">Từ khóa</th>
+              <th className="px-3 py-2 w-20">Cụm</th>
             </tr>
           </thead>
           <tbody>
@@ -237,7 +237,7 @@ const KeywordTableCompact = memo(function KeywordTableCompact({
       </div>
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-xs">
-          <span className="text-fg-muted">Page {currentPage} of {totalPages}</span>
+          <span className="text-fg-muted">Trang {currentPage} / {totalPages}</span>
           <div className="flex gap-1">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -288,23 +288,23 @@ export default function Results({
 
   const exportToExcel = useCallback((clusterFilter?: number) => {
     const exportData = data.keywords
-      .map((kw, i) => ({ Keyword: kw, Segmented: data.segmented[i], "Cluster ID": data.clusters[i], "Cluster Label": data.clusterLabels[data.clusters[i]] || "Unknown" }))
-      .filter(row => clusterFilter === undefined || row["Cluster ID"] === clusterFilter);
+      .map((kw, i) => ({ "Từ khóa": kw, "Đã tách từ": data.segmented[i], "Mã cụm": data.clusters[i], "Tên cụm": data.clusterLabels[data.clusters[i]] || "Chưa xác định" }))
+      .filter(row => clusterFilter === undefined || row["Mã cụm"] === clusterFilter);
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(exportData);
     XLSX.utils.book_append_sheet(wb, ws, "Clusters");
-    XLSX.writeFile(wb, `clusters_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `phan_cum_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }, [data]);
 
   const exportToCSV = useCallback(() => {
-    const headers = ["Keyword", "Segmented", "ClusterID", "ClusterLabel"];
+    const headers = ["Từ khóa", "Đã tách từ", "Mã cụm", "Tên cụm"];
     const csvContent = [headers.join(","), ...data.keywords.map((kw, i) =>
       [`"${kw.replace(/"/g, '""')}"`, `"${data.segmented[i].replace(/"/g, '""')}"`, data.clusters[i], `"${(data.clusterLabels[data.clusters[i]] || "").replace(/"/g, '""')}"`].join(",")
     )].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `clusters_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `phan_cum_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
   }, [data]);
 
@@ -314,14 +314,14 @@ export default function Results({
     const exportData = {
       metadata: { exportedAt: new Date().toISOString(), totalKeywords: data.keywords.length, totalClusters: stats.numClusters },
       clusters: Object.entries(clusterCounts).map(([cluster, count]) => ({
-        id: Number(cluster), label: data.clusterLabels[Number(cluster)] || "Unknown", count,
+        id: Number(cluster), label: data.clusterLabels[Number(cluster)] || "Chưa xác định", count,
         keywords: data.keywords.filter((_, i) => data.clusters[i] === Number(cluster)),
       })),
     };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `clusters_${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `phan_cum_${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
   }, [data, stats.numClusters]);
 
@@ -330,16 +330,16 @@ export default function Results({
       {/* Top Action Bar - Simple */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-fg-muted">
-          <span>Analysis complete</span>
+          <span>Phân tích hoàn tất</span>
           <span className="w-1 h-1 rounded-full bg-[var(--color-success-emphasis)]" />
-          <span className="text-fg-default font-medium">{stats.numClusters} clusters found</span>
+          <span className="text-fg-default font-medium">Tìm thấy {stats.numClusters} cụm</span>
         </div>
         <button
           onClick={onNewAnalysis}
           disabled={isProcessing}
           className="gh-btn group"
         >
-          <span>New Keywords</span>
+          <span>Phân tích mới</span>
           <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
         </button>
       </div>
@@ -349,17 +349,17 @@ export default function Results({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-fg-muted">Keywords</span>
+              <span className="text-fg-muted">Từ khóa</span>
               <span className="font-semibold text-fg-default">{stats.totalKeywords.toLocaleString()}</span>
             </div>
             <div className="w-px h-4 bg-[var(--color-border-muted)]" />
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-fg-muted">Clusters</span>
+              <span className="text-fg-muted">Số cụm</span>
               <span className="font-semibold text-fg-default">{stats.numClusters}</span>
             </div>
             <div className="w-px h-4 bg-[var(--color-border-muted)]" />
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-fg-muted">Avg Size</span>
+              <span className="text-fg-muted">TB mỗi cụm</span>
               <span className="font-semibold text-fg-default">{stats.avgPerCluster}</span>
             </div>
           </div>
@@ -370,7 +370,7 @@ export default function Results({
             className="gh-btn gh-btn-sm"
           >
             <Download className="w-4 h-4" />
-            Export
+            Xuất file
             <ChevronDown className={`w-3 h-3 transition-transform ${showExportMenu ? "rotate-180" : ""}`} />
           </button>
           {showExportMenu && (
@@ -378,13 +378,13 @@ export default function Results({
               <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
               <div className="gh-dropdown right-0 mt-2 w-48 z-50 animate-scale-in">
                 <button onClick={() => { exportToExcel(); setShowExportMenu(false); }} className="gh-dropdown-item">
-                  <FileSpreadsheet className="w-4 h-4 text-success" /> Export to Excel
+                  <FileSpreadsheet className="w-4 h-4 text-success" /> Xuất Excel
                 </button>
                 <button onClick={() => { exportToCSV(); setShowExportMenu(false); }} className="gh-dropdown-item">
-                  <Table className="w-4 h-4 text-accent" /> Export to CSV
+                  <Table className="w-4 h-4 text-accent" /> Xuất CSV
                 </button>
                 <button onClick={() => { exportToJSON(); setShowExportMenu(false); }} className="gh-dropdown-item">
-                  <FileJson className="w-4 h-4 text-warning" /> Export to JSON
+                  <FileJson className="w-4 h-4 text-warning" /> Xuất JSON
                 </button>
               </div>
             </>
@@ -400,7 +400,7 @@ export default function Results({
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-fg)]" />
-            <span className="text-[10px] font-mono text-fg-muted">3,072-dim vectors</span>
+            <span className="text-[10px] font-mono text-fg-muted">vector 3,072 chiều</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-warning-fg)]" />
@@ -424,7 +424,7 @@ export default function Results({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               {viewMode === "2d" ? <Layers className="w-4 h-4 text-fg-muted" /> : <Box className="w-4 h-4 text-fg-muted" />}
-              <h3 className="text-sm font-semibold text-fg-default">Visualization</h3>
+              <h3 className="text-sm font-semibold text-fg-default">Trực quan hóa</h3>
             </div>
             {/* 2D/3D Toggle */}
             <div className="gh-segmented">
@@ -472,7 +472,7 @@ export default function Results({
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-fg-muted" />
-                <h3 className="text-sm font-semibold text-fg-default">Clusters</h3>
+                <h3 className="text-sm font-semibold text-fg-default">Các cụm</h3>
               </div>
               <span className="gh-counter">{stats.numClusters}</span>
             </div>
@@ -490,14 +490,14 @@ export default function Results({
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Table className="w-4 h-4 text-fg-muted" />
-                <h3 className="text-sm font-semibold text-fg-default">Keywords</h3>
+                <h3 className="text-sm font-semibold text-fg-default">Từ khóa</h3>
               </div>
               {selectedCluster !== null && (
                 <button
                   onClick={() => setSelectedCluster(null)}
                   className="gh-btn gh-btn-sm"
                 >
-                  Clear filter
+                  Bỏ lọc
                 </button>
               )}
             </div>
@@ -518,7 +518,7 @@ export default function Results({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-3">
               <RefreshCw className={`w-4 h-4 text-fg-muted ${isProcessing ? 'animate-spin' : ''}`} />
-              <span className="text-sm font-medium text-fg-default">Adjust & Re-cluster</span>
+              <span className="text-sm font-medium text-fg-default">Điều chỉnh & Phân cụm lại</span>
             </div>
             <ClusteringConfigPanel
               config={currentConfig}
@@ -535,12 +535,12 @@ export default function Results({
             {isProcessing ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Processing...
+                Đang xử lý...
               </>
             ) : (
               <>
                 <RefreshCw className="w-4 h-4" />
-                Re-cluster
+                Phân cụm lại
               </>
             )}
           </button>

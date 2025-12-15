@@ -25,11 +25,11 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
 };
 
 const STEP_TECH_DETAILS: Record<string, string> = {
-  preprocess: "NLP tokenization",
+  preprocess: "Tách từ NLP",
   embed: "text-embedding-3-large",
   cluster: "HDBSCAN + UMAP",
   label: "GPT-4o-mini",
-  visualize: "3D projection",
+  visualize: "Chiếu 3D",
 };
 
 export default function ProcessingStatus({ steps, startTime }: ProcessingStatusProps) {
@@ -52,7 +52,7 @@ export default function ProcessingStatus({ steps, startTime }: ProcessingStatusP
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    return mins > 0 ? `${mins}p ${secs}s` : `${secs}s`;
   };
 
   return (
@@ -67,9 +67,9 @@ export default function ProcessingStatus({ steps, startTime }: ProcessingStatusP
               </div>
             </div>
             <div>
-              <h3 className="font-semibold text-sm text-fg-default">Processing</h3>
+              <h3 className="font-semibold text-sm text-fg-default">Đang xử lý</h3>
               <p className="text-xs text-fg-muted truncate max-w-[140px]">
-                {currentStep ? currentStep.label : "Preparing..."}
+                {currentStep ? currentStep.label : "Đang chuẩn bị..."}
               </p>
             </div>
           </div>
@@ -157,7 +157,7 @@ export default function ProcessingStatus({ steps, startTime }: ProcessingStatusP
               )}
               {isCompleted && (
                 <span className="gh-label gh-label-success text-[9px]">
-                  Done
+                  Xong
                 </span>
               )}
             </div>
@@ -169,7 +169,7 @@ export default function ProcessingStatus({ steps, startTime }: ProcessingStatusP
       <div className="px-4 py-3 border-t border-default bg-canvas-subtle">
         <div className="flex items-center justify-between text-[10px] text-fg-muted">
           <span className="font-mono">OpenAI + HDBSCAN + UMAP</span>
-          <span className="font-mono">3,072-dim vectors</span>
+          <span className="font-mono">vector 3,072 chiều</span>
         </div>
       </div>
     </div>

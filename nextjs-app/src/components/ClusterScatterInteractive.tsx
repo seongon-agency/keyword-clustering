@@ -93,22 +93,6 @@ export default function ClusterScatterInteractive({
     return chartData.filter((d) => !hiddenClusters.has(d.cluster));
   }, [chartData, hiddenClusters]);
 
-  const toggleCluster = (cluster: number) => {
-    const newHidden = new Set(hiddenClusters);
-    if (newHidden.has(cluster)) {
-      newHidden.delete(cluster);
-    } else {
-      newHidden.add(cluster);
-    }
-    setHiddenClusters(newHidden);
-  };
-
-  const handleLegendClick = (cluster: number) => {
-    if (onClusterSelect) {
-      onClusterSelect(selectedCluster === cluster ? null : cluster);
-    }
-  };
-
   const resetZoom = () => setZoomArea(null);
 
   const zoomIn = () => {
@@ -168,15 +152,6 @@ export default function ClusterScatterInteractive({
     return null;
   };
 
-  // Cluster counts for legend
-  const clusterCounts = useMemo(() => {
-    const counts: Record<number, number> = {};
-    clusters.forEach((c) => {
-      counts[c] = (counts[c] || 0) + 1;
-    });
-    return counts;
-  }, [clusters]);
-
   return (
     <div className="space-y-3">
       {/* Toolbar */}
@@ -228,7 +203,7 @@ export default function ClusterScatterInteractive({
           </button>
         </div>
         <div className="text-xs text-fg-muted">
-          {filteredData.length.toLocaleString()} of {chartData.length.toLocaleString()} points
+          {filteredData.length.toLocaleString()} / {chartData.length.toLocaleString()} điểm
         </div>
       </div>
 
@@ -280,60 +255,6 @@ export default function ClusterScatterInteractive({
         </ResponsiveContainer>
       </div>
 
-      {/* Legend Section */}
-      <div className="mt-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-fg-muted">{uniqueClusters.length} clusters</span>
-          <button
-            onClick={() => {
-              if (hiddenClusters.size > 0) {
-                setHiddenClusters(new Set());
-              } else {
-                setHiddenClusters(new Set(uniqueClusters));
-              }
-            }}
-            className="text-xs text-fg-muted hover:text-fg-default transition-colors"
-          >
-            {hiddenClusters.size > 0 ? "Show All" : "Hide All"}
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {uniqueClusters
-            .sort((a, b) => (clusterCounts[b] || 0) - (clusterCounts[a] || 0))
-            .map((cluster) => {
-              const isHidden = hiddenClusters.has(cluster);
-              const isSelected = selectedCluster === cluster;
-              const count = clusterCounts[cluster] || 0;
-
-              return (
-                <button
-                  key={cluster}
-                  onClick={() => handleLegendClick(cluster)}
-                  onDoubleClick={() => toggleCluster(cluster)}
-                  title={`${clusterLabels[cluster] || `Cluster ${cluster}`} (${count}) - Double-click to ${isHidden ? 'show' : 'hide'}`}
-                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border transition-all ${
-                    isHidden ? "opacity-30" : ""
-                  } ${
-                    isSelected
-                      ? "border-[var(--color-accent-emphasis)] bg-[var(--color-accent-subtle)]"
-                      : selectedCluster !== null
-                      ? "border-transparent bg-canvas-subtle opacity-40 hover:opacity-70"
-                      : "border-transparent bg-canvas-subtle hover:bg-canvas-default"
-                  }`}
-                >
-                  <span
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: COLORS[cluster % COLORS.length] }}
-                  />
-                  <span className={`text-xs text-fg-default font-medium truncate max-w-[120px] ${isHidden ? "line-through" : ""}`}>
-                    {clusterLabels[cluster] || `Cluster ${cluster}`}
-                  </span>
-                  <span className="text-xs text-fg-muted">{count}</span>
-                </button>
-              );
-            })}
-        </div>
-      </div>
     </div>
   );
 }

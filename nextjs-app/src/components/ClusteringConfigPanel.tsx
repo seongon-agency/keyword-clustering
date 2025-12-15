@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Settings2, ChevronDown, ChevronUp } from "lucide-react";
+import { Settings2, ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
 
 export interface ClusteringConfig {
   target_clusters: number;
@@ -13,61 +13,69 @@ export interface ClusteringConfig {
   assign_outliers: boolean;
 }
 
-// Simplified presets with clear, distinct configurations
-export const CLUSTERING_PRESETS: Record<string, { name: string; hint: string; config: ClusteringConfig }> = {
-  recommended: {
-    name: "Balanced",
-    hint: "Default",
+// Presets with user-friendly descriptions
+const PRESETS = [
+  {
+    key: "recommended",
+    name: "Cân bằng",
+    shortDesc: "Phù hợp cho hầu hết trường hợp",
+    longDesc: "Tạo các cụm có kích thước vừa phải, cân bằng giữa số lượng cụm và độ chi tiết.",
     config: {
       target_clusters: 0,
       granularity: 5,
       min_keywords_per_cluster: 8,
       cluster_coherence: 5,
-      cluster_method: "eom",
+      cluster_method: "eom" as const,
       merge_clusters: true,
       assign_outliers: true
     }
   },
-  few_large: {
-    name: "Broad",
-    hint: "Fewer clusters",
+  {
+    key: "few_large",
+    name: "Tổng quan",
+    shortDesc: "Ít cụm, dễ quản lý",
+    longDesc: "Gộp từ khóa thành ít cụm lớn hơn. Phù hợp khi bạn muốn nhìn bức tranh tổng thể.",
     config: {
       target_clusters: 0,
       granularity: 2,
       min_keywords_per_cluster: 20,
       cluster_coherence: 3,
-      cluster_method: "eom",
+      cluster_method: "eom" as const,
       merge_clusters: true,
       assign_outliers: true
     }
   },
-  many_small: {
-    name: "Granular",
-    hint: "More clusters",
+  {
+    key: "many_small",
+    name: "Chi tiết",
+    shortDesc: "Nhiều cụm nhỏ, phân loại kỹ",
+    longDesc: "Tạo nhiều cụm nhỏ để phân loại chi tiết hơn. Phù hợp khi bạn muốn phân tích sâu.",
     config: {
       target_clusters: 0,
       granularity: 9,
       min_keywords_per_cluster: 5,
       cluster_coherence: 7,
-      cluster_method: "leaf",
+      cluster_method: "leaf" as const,
       merge_clusters: false,
       assign_outliers: true
     }
   },
-  strict_quality: {
-    name: "Strict",
-    hint: "High similarity",
+  {
+    key: "strict_quality",
+    name: "Chất lượng",
+    shortDesc: "Chỉ gộp từ thực sự giống nhau",
+    longDesc: "Yêu cầu độ tương đồng cao. Từ khóa không phù hợp sẽ được giữ riêng để bạn xem xét.",
     config: {
       target_clusters: 0,
       granularity: 6,
       min_keywords_per_cluster: 10,
       cluster_coherence: 9,
-      cluster_method: "leaf",
+      cluster_method: "leaf" as const,
       merge_clusters: false,
       assign_outliers: false
     }
   }
-};
+];
 
 interface ClusteringConfigPanelProps {
   config: ClusteringConfig;
@@ -76,16 +84,17 @@ interface ClusteringConfigPanelProps {
   compact?: boolean;
 }
 
-// Clean slider component
-function Slider({
+// Slider with dynamic explanation
+function SmartSlider({
   label,
   value,
   onChange,
   min,
   max,
   disabled,
-  leftHint,
-  rightHint,
+  lowLabel,
+  highLabel,
+  getExplanation,
 }: {
   label: string;
   value: number;
@@ -93,17 +102,23 @@ function Slider({
   min: number;
   max: number;
   disabled?: boolean;
-  leftHint: string;
-  rightHint: string;
+  lowLabel: string;
+  highLabel: string;
+  getExplanation: (value: number, min: number, max: number) => string;
 }) {
+  const percentage = ((value - min) / (max - min)) * 100;
+  const isLow = percentage < 35;
+  const isHigh = percentage > 65;
+
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-fg-muted">{label}</span>
-        <span className="text-xs font-mono font-medium text-fg-default bg-canvas-subtle px-1.5 py-0.5 rounded">
+        <span className="text-sm font-medium text-fg-default">{label}</span>
+        <span className="text-sm font-mono text-fg-muted bg-canvas-subtle px-2 py-0.5 rounded">
           {value}
         </span>
       </div>
+
       <input
         type="range"
         min={min}
@@ -111,104 +126,82 @@ function Slider({
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
-        className="w-full h-1.5 bg-[var(--color-border-default)] rounded-full appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed
+        className="w-full h-2 bg-[var(--color-border-default)] rounded-full appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed
           [&::-webkit-slider-thumb]:appearance-none
-          [&::-webkit-slider-thumb]:w-3.5
-          [&::-webkit-slider-thumb]:h-3.5
+          [&::-webkit-slider-thumb]:w-4
+          [&::-webkit-slider-thumb]:h-4
           [&::-webkit-slider-thumb]:rounded-full
           [&::-webkit-slider-thumb]:bg-[var(--color-accent-emphasis)]
           [&::-webkit-slider-thumb]:cursor-pointer
-          [&::-webkit-slider-thumb]:transition-transform
+          [&::-webkit-slider-thumb]:shadow-md
           [&::-webkit-slider-thumb]:hover:scale-110
-          [&::-moz-range-thumb]:w-3.5
-          [&::-moz-range-thumb]:h-3.5
+          [&::-webkit-slider-thumb]:transition-transform
+          [&::-moz-range-thumb]:w-4
+          [&::-moz-range-thumb]:h-4
           [&::-moz-range-thumb]:rounded-full
           [&::-moz-range-thumb]:bg-[var(--color-accent-emphasis)]
           [&::-moz-range-thumb]:border-0
           [&::-moz-range-thumb]:cursor-pointer"
       />
-      <div className="flex justify-between text-[10px] text-fg-subtle">
-        <span>{leftHint}</span>
-        <span>{rightHint}</span>
+
+      <div className="flex justify-between text-xs">
+        <span className={isLow ? "text-fg-default font-medium" : "text-fg-muted"}>
+          ← {lowLabel}
+        </span>
+        <span className={isHigh ? "text-fg-default font-medium" : "text-fg-muted"}>
+          {highLabel} →
+        </span>
+      </div>
+
+      {/* Dynamic explanation */}
+      <div className="flex items-start gap-2 text-xs text-fg-muted bg-canvas-subtle rounded-md px-3 py-2">
+        <Lightbulb className="w-3.5 h-3.5 text-warning flex-shrink-0 mt-0.5" />
+        <span>{getExplanation(value, min, max)}</span>
       </div>
     </div>
   );
 }
 
-// Toggle component for binary choices
-function Toggle({
+// Toggle with explanation
+function SmartToggle({
   label,
   checked,
   onChange,
   disabled,
+  onExplanation,
+  offExplanation,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  onExplanation: string;
+  offExplanation: string;
 }) {
   return (
-    <label className={`flex items-center justify-between py-1 ${disabled ? "opacity-50" : "cursor-pointer"}`}>
-      <span className="text-xs text-fg-muted">{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-          checked ? "bg-[var(--color-accent-emphasis)]" : "bg-[var(--color-border-default)]"
-        } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
-      >
-        <span
-          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
-            checked ? "translate-x-4" : "translate-x-1"
-          }`}
-        />
-      </button>
-    </label>
-  );
-}
-
-// Segmented control for method selection
-function MethodToggle({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: "eom" | "leaf";
-  onChange: (value: "eom" | "leaf") => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <span className="text-xs text-fg-muted">Detection method</span>
-      <div className="flex gap-1 p-0.5 bg-canvas-subtle rounded-md">
+    <div className="space-y-2">
+      <div className={`flex items-center justify-between ${disabled ? "opacity-50" : ""}`}>
+        <span className="text-sm text-fg-default">{label}</span>
         <button
           type="button"
+          role="switch"
+          aria-checked={checked}
           disabled={disabled}
-          onClick={() => onChange("eom")}
-          className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
-            value === "eom"
-              ? "bg-canvas-default text-fg-default shadow-sm"
-              : "text-fg-muted hover:text-fg-default"
-          } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+          onClick={() => onChange(!checked)}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+            checked ? "bg-[var(--color-accent-emphasis)]" : "bg-[var(--color-border-default)]"
+          } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
         >
-          Balanced
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange("leaf")}
-          className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
-            value === "leaf"
-              ? "bg-canvas-default text-fg-default shadow-sm"
-              : "text-fg-muted hover:text-fg-default"
-          } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-        >
-          Tight
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+              checked ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
         </button>
       </div>
+      <p className="text-xs text-fg-muted bg-canvas-subtle rounded-md px-3 py-2">
+        {checked ? onExplanation : offExplanation}
+      </p>
     </div>
   );
 }
@@ -219,13 +212,11 @@ export default function ClusteringConfigPanel({
   disabled = false,
   compact = false,
 }: ClusteringConfigPanelProps) {
-  const [showTuning, setShowTuning] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [hoveredPreset, setHoveredPreset] = useState<string | null>(null);
 
-  const handlePresetChange = (presetKey: string) => {
-    const preset = CLUSTERING_PRESETS[presetKey];
-    if (preset) {
-      onChange(preset.config);
-    }
+  const handlePresetChange = (preset: typeof PRESETS[0]) => {
+    onChange(preset.config);
   };
 
   const handleConfigChange = <K extends keyof ClusteringConfig>(key: K, value: ClusteringConfig[K]) => {
@@ -234,7 +225,7 @@ export default function ClusteringConfigPanel({
 
   // Check if current config matches a preset
   const getMatchingPreset = () => {
-    for (const [key, preset] of Object.entries(CLUSTERING_PRESETS)) {
+    for (const preset of PRESETS) {
       const p = preset.config;
       if (
         p.granularity === config.granularity &&
@@ -244,111 +235,160 @@ export default function ClusteringConfigPanel({
         p.merge_clusters === config.merge_clusters &&
         p.assign_outliers === config.assign_outliers
       ) {
-        return key;
+        return preset.key;
       }
     }
-    return "custom";
+    return null;
   };
 
   const currentPreset = getMatchingPreset();
+  const activePresetInfo = hoveredPreset
+    ? PRESETS.find(p => p.key === hoveredPreset)
+    : currentPreset
+    ? PRESETS.find(p => p.key === currentPreset)
+    : null;
 
-  // Unified design for both modes
   return (
-    <div className="space-y-3">
-      {/* Header - only show in non-compact mode */}
+    <div className="space-y-4">
+      {/* Header */}
       {!compact && (
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2">
           <Settings2 className="w-4 h-4 text-fg-muted" />
-          <span className="text-sm font-medium text-fg-default">Clustering Mode</span>
-          {currentPreset === "custom" && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-canvas-subtle text-fg-muted">Custom</span>
-          )}
+          <span className="text-sm font-semibold text-fg-default">Cách phân cụm</span>
         </div>
       )}
 
-      {/* Preset buttons - pill style */}
-      <div className="flex flex-wrap gap-1.5">
-        {Object.entries(CLUSTERING_PRESETS).map(([key, preset]) => (
+      {/* Presets - Card style */}
+      <div className="grid grid-cols-2 gap-2">
+        {PRESETS.map((preset) => (
           <button
-            key={key}
-            onClick={() => handlePresetChange(key)}
+            key={preset.key}
+            onClick={() => handlePresetChange(preset)}
+            onMouseEnter={() => setHoveredPreset(preset.key)}
+            onMouseLeave={() => setHoveredPreset(null)}
             disabled={disabled}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-              currentPreset === key
-                ? "bg-[var(--color-accent-emphasis)] text-white shadow-sm"
-                : "bg-canvas-subtle text-fg-muted hover:bg-canvas-inset hover:text-fg-default"
+            className={`text-left p-3 rounded-lg border-2 transition-all ${
+              currentPreset === preset.key
+                ? "border-[var(--color-accent-emphasis)] bg-[var(--color-accent-subtle)]"
+                : "border-default bg-canvas-default hover:border-[var(--color-border-emphasis)] hover:bg-canvas-subtle"
             } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
           >
-            {preset.name}
+            <div className="mb-1">
+              <span className="font-medium text-sm text-fg-default">{preset.name}</span>
+            </div>
+            <p className="text-xs text-fg-muted leading-relaxed">{preset.shortDesc}</p>
           </button>
         ))}
       </div>
 
-      {/* Tuning toggle */}
+      {/* Preset explanation */}
+      {activePresetInfo && (
+        <div className="px-3 py-2.5 bg-canvas-subtle rounded-lg text-xs text-fg-muted animate-fade-in">
+          <span className="font-medium text-fg-default">{activePresetInfo.name}:</span>{" "}
+          {activePresetInfo.longDesc}
+        </div>
+      )}
+
+      {/* Custom indicator */}
+      {currentPreset === null && (
+        <div className="px-3 py-2 bg-[var(--color-attention-subtle)] border border-[var(--color-attention-muted)] rounded-lg">
+          <span className="text-xs text-fg-default">Đang dùng cài đặt tùy chỉnh</span>
+        </div>
+      )}
+
+      {/* Advanced toggle */}
       <button
-        onClick={() => setShowTuning(!showTuning)}
+        onClick={() => setShowAdvanced(!showAdvanced)}
         disabled={disabled}
-        className="flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg-default transition-colors disabled:opacity-50"
+        className="flex items-center gap-2 text-sm text-fg-muted hover:text-fg-default transition-colors disabled:opacity-50 w-full"
       >
-        {showTuning ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        <span>{showTuning ? "Hide options" : "Fine-tune"}</span>
+        {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        <span>{showAdvanced ? "Ẩn tùy chỉnh chi tiết" : "Tùy chỉnh chi tiết"}</span>
+        <div className="flex-1 h-px bg-[var(--color-border-default)]" />
       </button>
 
       {/* Advanced options */}
-      {showTuning && (
-        <div className={`space-y-4 pt-3 border-t border-default animate-fade-in ${compact ? "" : "pb-1"}`}>
-          {/* Sliders */}
-          <Slider
-            label="Granularity"
+      {showAdvanced && (
+        <div className="space-y-5 animate-fade-in">
+          {/* Tip box */}
+          <div className="bg-[var(--color-accent-subtle)] border border-[var(--color-accent-muted)] rounded-lg p-3">
+            <p className="text-xs text-fg-muted leading-relaxed">
+              <strong className="text-fg-default">Mẹo:</strong> Kéo thanh trượt để điều chỉnh.
+              Phần giải thích bên dưới mỗi thanh sẽ cho bạn biết cài đặt này có tác dụng gì.
+            </p>
+          </div>
+
+          {/* Sliders with explanations */}
+          <SmartSlider
+            label="Số lượng cụm"
             value={config.granularity}
             onChange={(v) => handleConfigChange("granularity", v)}
             min={1}
             max={10}
             disabled={disabled}
-            leftHint="Broad"
-            rightHint="Fine"
+            lowLabel="Ít cụm"
+            highLabel="Nhiều cụm"
+            getExplanation={(value, min, max) => {
+              const pct = ((value - min) / (max - min)) * 100;
+              if (pct < 35) return "Sẽ tạo ít cụm hơn, mỗi cụm chứa nhiều từ khóa. Phù hợp khi bạn muốn nhìn tổng quan.";
+              if (pct > 65) return "Sẽ tạo nhiều cụm nhỏ hơn, phân loại chi tiết hơn. Phù hợp khi bạn muốn phân tích sâu.";
+              return "Mức cân bằng - tạo số lượng cụm vừa phải, phù hợp cho hầu hết trường hợp.";
+            }}
           />
-          <Slider
-            label="Min cluster size"
+
+          <SmartSlider
+            label="Kích thước cụm tối thiểu"
             value={config.min_keywords_per_cluster}
             onChange={(v) => handleConfigChange("min_keywords_per_cluster", v)}
             min={3}
             max={30}
             disabled={disabled}
-            leftHint="3"
-            rightHint="30"
+            lowLabel="Cho phép cụm nhỏ"
+            highLabel="Yêu cầu cụm lớn"
+            getExplanation={(value) => {
+              if (value <= 8) return `Cho phép tạo cụm từ ${value} từ khóa trở lên. Sẽ có nhiều cụm nhỏ, bao gồm các nhóm ngách.`;
+              if (value >= 20) return `Mỗi cụm phải có ít nhất ${value} từ khóa. Các nhóm nhỏ sẽ bị gộp vào cụm lớn hơn.`;
+              return `Mỗi cụm cần ít nhất ${value} từ khóa để được tạo thành. Đây là mức cân bằng tốt.`;
+            }}
           />
-          <Slider
-            label="Coherence"
+
+          <SmartSlider
+            label="Độ tương đồng yêu cầu"
             value={config.cluster_coherence}
             onChange={(v) => handleConfigChange("cluster_coherence", v)}
             min={1}
             max={10}
             disabled={disabled}
-            leftHint="Loose"
-            rightHint="Strict"
+            lowLabel="Linh hoạt"
+            highLabel="Nghiêm ngặt"
+            getExplanation={(value, min, max) => {
+              const pct = ((value - min) / (max - min)) * 100;
+              if (pct < 35) return "Từ khóa không cần quá giống nhau để được xếp chung cụm. Kết quả sẽ đa dạng hơn.";
+              if (pct > 65) return "Chỉ những từ khóa thực sự giống nhau mới được xếp chung. Các cụm sẽ đồng nhất hơn.";
+              return "Mức yêu cầu vừa phải - từ khóa cần có sự liên quan rõ ràng để được xếp chung.";
+            }}
           />
 
-          {/* Method toggle */}
-          <MethodToggle
-            value={config.cluster_method}
-            onChange={(v) => handleConfigChange("cluster_method", v)}
-            disabled={disabled}
-          />
+          {/* Toggles section */}
+          <div className="space-y-4 pt-3 border-t border-default">
+            <p className="text-xs font-medium text-fg-muted uppercase tracking-wide">Tùy chọn nâng cao</p>
 
-          {/* Boolean toggles */}
-          <div className="space-y-1 pt-2 border-t border-default">
-            <Toggle
-              label="Merge similar clusters"
+            <SmartToggle
+              label="Tự động gộp cụm giống nhau"
               checked={config.merge_clusters}
               onChange={(v) => handleConfigChange("merge_clusters", v)}
               disabled={disabled}
+              onExplanation="Bật: Các cụm có nội dung tương tự sẽ được tự động gộp lại để tránh trùng lặp."
+              offExplanation="Tắt: Giữ nguyên tất cả cụm, kể cả khi có những cụm giống nhau. Hữu ích khi bạn muốn xem chi tiết."
             />
-            <Toggle
-              label="Assign outliers to nearest"
+
+            <SmartToggle
+              label="Xếp từ khóa lẻ vào cụm gần nhất"
               checked={config.assign_outliers}
               onChange={(v) => handleConfigChange("assign_outliers", v)}
               disabled={disabled}
+              onExplanation="Bật: Những từ khóa không hoàn toàn phù hợp sẽ được xếp vào cụm gần nhất."
+              offExplanation="Tắt: Từ khóa không phù hợp sẽ được giữ riêng, giúp bạn nhận ra những từ khóa độc đáo hoặc bất thường."
             />
           </div>
         </div>
@@ -356,3 +396,9 @@ export default function ClusteringConfigPanel({
     </div>
   );
 }
+
+// Export presets for use in other components
+export const CLUSTERING_PRESETS = PRESETS.reduce((acc, preset) => {
+  acc[preset.key] = { name: preset.name, hint: preset.shortDesc, config: preset.config };
+  return acc;
+}, {} as Record<string, { name: string; hint: string; config: ClusteringConfig }>);

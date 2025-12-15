@@ -103,7 +103,7 @@ export default function FileUpload({
     const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as string[][];
 
     if (jsonData.length > 0) {
-      const headers = jsonData[0].map((h, i) => h?.toString() || `Column ${i + 1}`);
+      const headers = jsonData[0].map((h, i) => h?.toString() || `Cột ${i + 1}`);
       setColumns(headers);
     }
   };
@@ -175,8 +175,8 @@ export default function FileUpload({
         <div className="flex items-center gap-2">
           <FileSpreadsheet className="w-5 h-5 text-fg-muted" />
           <div>
-            <h2 className="font-semibold text-fg-default text-sm">Input Keywords</h2>
-            <p className="text-xs text-fg-muted">Paste or upload your keywords</p>
+            <h2 className="font-semibold text-fg-default text-sm">Nhập từ khóa</h2>
+            <p className="text-xs text-fg-muted">Dán hoặc tải lên danh sách từ khóa</p>
           </div>
         </div>
         {parsedKeywords.length > 0 && inputMode === "paste" && (
@@ -192,7 +192,7 @@ export default function FileUpload({
           className={`gh-segmented-btn flex-1 flex items-center justify-center gap-1.5 ${inputMode === "paste" ? "active" : ""}`}
         >
           <Type className="w-3.5 h-3.5" />
-          Paste Text
+          Dán văn bản
         </button>
         <button
           onClick={() => setInputMode("file")}
@@ -200,7 +200,7 @@ export default function FileUpload({
           className={`gh-segmented-btn flex-1 flex items-center justify-center gap-1.5 ${inputMode === "file" ? "active" : ""}`}
         >
           <File className="w-3.5 h-3.5" />
-          Upload File
+          Tải file
         </button>
       </div>
 
@@ -212,7 +212,7 @@ export default function FileUpload({
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               disabled={isProcessing}
-              placeholder="Enter keywords here (one per line, or paste from Excel)..."
+              placeholder="Nhập từ khóa tại đây (mỗi dòng một từ khóa, hoặc dán từ Excel)..."
               className="gh-input h-32 font-mono text-xs resize-none"
             />
             {pasteText && (
@@ -270,7 +270,7 @@ export default function FileUpload({
                 </div>
                 <div className="text-left">
                   <p className="text-fg-default font-medium text-sm">
-                    {isDragActive ? "Drop here..." : "Drop Excel file or click"}
+                    {isDragActive ? "Thả file vào đây..." : "Kéo thả file Excel hoặc nhấn để chọn"}
                   </p>
                   <p className="text-xs text-fg-muted">.xlsx, .xls</p>
                 </div>
@@ -306,7 +306,7 @@ export default function FileUpload({
                   disabled={isProcessing}
                   className="gh-input py-1.5 text-xs"
                 >
-                  <option value="">Select sheet...</option>
+                  <option value="">Chọn sheet...</option>
                   {sheets.map((sheet) => (
                     <option key={sheet} value={sheet}>{sheet}</option>
                   ))}
@@ -321,7 +321,7 @@ export default function FileUpload({
                   disabled={isProcessing}
                   className="gh-input py-1.5 text-xs"
                 >
-                  <option value="">Select keyword column...</option>
+                  <option value="">Chọn cột chứa từ khóa...</option>
                   {columns.map((col) => (
                     <option key={col} value={col}>{col}</option>
                   ))}
@@ -356,7 +356,7 @@ export default function FileUpload({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4 text-fg-muted" />
-            <span className="text-sm font-medium text-fg-default">Language</span>
+            <span className="text-sm font-medium text-fg-default">Ngôn ngữ</span>
           </div>
           <div className="gh-segmented">
             {([
@@ -392,15 +392,15 @@ export default function FileUpload({
         {isProcessing ? (
           <>
             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            <span>Analyzing keywords...</span>
+            <span>Đang phân tích...</span>
           </>
         ) : (
           <>
             <Wand2 className="w-4 h-4" />
-            <span>Start Analysis</span>
+            <span>Bắt đầu phân tích</span>
             {canProcess && (
               <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs font-medium">
-                {inputMode === "paste" ? parsedKeywords.length.toLocaleString() : "Ready"}
+                {inputMode === "paste" ? parsedKeywords.length.toLocaleString() : "Sẵn sàng"}
               </span>
             )}
           </>

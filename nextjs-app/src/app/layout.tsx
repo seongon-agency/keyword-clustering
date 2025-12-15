@@ -3,8 +3,8 @@ import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
 
 export const metadata: Metadata = {
-  title: "Keyword Clustering Tool",
-  description: "AI-Powered Keyword Clustering with OpenAI & GPT-4o",
+  title: "Công cụ phân cụm từ khóa",
+  description: "Phân cụm từ khóa bằng AI với OpenAI & GPT-4o",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="vi" suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider>
           {children}

@@ -57,11 +57,11 @@ export default function Home() {
     setStartTime(Date.now());
 
     const initialSteps: ProcessingStep[] = [
-      { id: "preprocess", label: "Preprocessing keywords", status: "pending" },
-      { id: "embed", label: "Analyzing semantics", status: "pending" },
-      { id: "cluster", label: "Grouping keywords", status: "pending" },
-      { id: "label", label: "Generating labels", status: "pending" },
-      { id: "visualize", label: "Creating visualization", status: "pending" },
+      { id: "preprocess", label: "Tiền xử lý từ khóa", status: "pending" },
+      { id: "embed", label: "Phân tích ngữ nghĩa", status: "pending" },
+      { id: "cluster", label: "Phân cụm từ khóa", status: "pending" },
+      { id: "label", label: "Tạo nhãn cụm", status: "pending" },
+      { id: "visualize", label: "Tạo trực quan hóa", status: "pending" },
     ];
     setProcessingSteps(initialSteps);
 
@@ -145,7 +145,7 @@ export default function Home() {
       if ((err as Error).name === "AbortError") {
         return;
       }
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(err instanceof Error ? err.message : "Đã xảy ra lỗi");
       setProcessingSteps((prev) =>
         prev.map((step) =>
           step.status === "processing"
@@ -215,7 +215,7 @@ export default function Home() {
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-semibold text-danger">Something went wrong</p>
+                        <p className="font-semibold text-danger">Đã xảy ra lỗi</p>
                         <p className="text-sm text-fg-muted mt-1">{error}</p>
                       </div>
                     </div>

@@ -15,12 +15,9 @@ export default function Header() {
             <div className="flex items-center gap-2">
               <GitBranch className="w-5 h-5 text-fg-default" />
               <h1 className="font-semibold text-fg-default text-base">
-                Keyword Clustering
+                Phân cụm từ khóa
               </h1>
             </div>
-            <span className="gh-label gh-label-accent text-[11px]">
-              Beta
-            </span>
           </div>
 
           {/* Right side */}
@@ -29,7 +26,7 @@ export default function Header() {
             <button
               onClick={toggleTheme}
               className="gh-btn gh-btn-sm"
-              aria-label="Toggle theme"
+              aria-label="Chuyển đổi giao diện"
             >
               {theme === "light" ? (
                 <Moon className="w-4 h-4" />
