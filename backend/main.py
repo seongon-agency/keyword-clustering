@@ -37,6 +37,7 @@ else:
 import hdbscan
 from openai import OpenAI
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.cluster import KMeans
 from umap import UMAP
 
 # Vietnamese NLP (optional)
@@ -222,9 +223,10 @@ def merge_similar_clusters(embeddings: np.ndarray, clusters: np.ndarray, similar
     return np.array([mapping[c] for c in new_clusters])
 
 
-def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10) -> np.ndarray:
+def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10, max_cluster_size: int = 300) -> np.ndarray:
     """
     Attempt to subdivide a single cluster into smaller sub-clusters.
+    Uses HDBSCAN first, falls back to K-Means if HDBSCAN can't split.
     Returns cluster labels (0, 1, 2, ...) or all zeros if can't split.
     """
     n_samples = len(embeddings)
@@ -233,19 +235,20 @@ def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10) -> np.
 
     # Use smaller n_neighbors for subdivision to find finer structure
     n_components = min(30, n_samples - 1)
-    n_neighbors = min(8, n_samples - 1)
+    n_neighbors = min(5, n_samples - 1)  # Even smaller for finer local structure
 
     try:
         umap_reducer = UMAP(
             n_components=n_components,
             n_neighbors=n_neighbors,
             min_dist=0.0,
-            metric='euclidean',  # Already reduced, use euclidean
+            metric='euclidean',
             random_state=42,
             n_jobs=1
         )
         reduced = umap_reducer.fit_transform(embeddings)
 
+        # Try HDBSCAN first
         sub_clusterer = hdbscan.HDBSCAN(
             min_cluster_size=min_cluster_size,
             min_samples=2,
@@ -255,13 +258,27 @@ def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10) -> np.
         )
         sub_labels = sub_clusterer.fit_predict(reduced)
 
-        # Check if we actually got multiple clusters (not just one + outliers)
+        # Check if HDBSCAN found multiple clusters
         unique_labels = set(sub_labels) - {-1}
         if len(unique_labels) >= 2:
-            # Reassign outliers
             if np.sum(sub_labels == -1) > 0:
                 sub_labels = reassign_outliers_to_nearest_cluster(reduced, sub_labels)
+            print(f"[DEBUG] HDBSCAN subdivided into {len(unique_labels)} sub-clusters")
             return sub_labels
+
+        # HDBSCAN failed to split - fall back to K-Means
+        # Calculate optimal k based on cluster size and target max size
+        target_k = max(2, n_samples // max_cluster_size + 1)
+        target_k = min(target_k, n_samples // min_cluster_size)  # Don't create tiny clusters
+        target_k = max(2, min(target_k, 8))  # Between 2 and 8 splits
+
+        print(f"[DEBUG] HDBSCAN couldn't split, using K-Means with k={target_k}")
+
+        kmeans = KMeans(n_clusters=target_k, random_state=42, n_init=10)
+        sub_labels = kmeans.fit_predict(reduced)
+
+        return sub_labels
+
     except Exception as e:
         print(f"[DEBUG] Subdivision failed: {e}")
 
@@ -382,7 +399,7 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
             cluster_indices = np.where(cluster_mask)[0]
             cluster_embeddings = reduced_embeddings[cluster_indices]
 
-            sub_labels = subdivide_cluster(cluster_embeddings, min_cluster_size=min_cluster_size)
+            sub_labels = subdivide_cluster(cluster_embeddings, min_cluster_size=min_cluster_size, max_cluster_size=max_cluster_size)
 
             unique_sub = set(sub_labels)
             if len(unique_sub) >= 2:
