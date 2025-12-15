@@ -191,91 +191,110 @@ export default function ClusteringConfigPanel({
 
   const currentPreset = getMatchingPreset();
 
-  // Compact mode for re-clustering in results view - side by side layout
+  // Compact mode for re-clustering in results view
   if (compact) {
     return (
-      <div className="flex gap-6">
-        {/* Left: Presets */}
-        <div className="flex-shrink-0">
-          <p className="text-[10px] text-fg-muted mb-2 font-medium uppercase tracking-wide">Quick Presets</p>
-          <div className="grid grid-cols-2 gap-1.5 w-[200px]">
+      <div className="space-y-4">
+        {/* Presets Row */}
+        <div>
+          <p className="text-xs text-fg-muted mb-2">Quick Presets</p>
+          <div className="flex gap-2">
             {Object.entries(CLUSTERING_PRESETS).map(([key, preset]) => (
               <button
                 key={key}
                 onClick={() => handlePresetChange(key)}
                 disabled={disabled}
-                className={`relative p-2 rounded-md border transition-all ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
                   currentPreset === key
-                    ? "bg-[var(--color-accent-subtle)] border-[var(--color-accent-emphasis)]"
-                    : "bg-canvas-subtle border-transparent hover:border-[var(--color-border-default)]"
+                    ? "bg-[var(--color-accent-subtle)] border-[var(--color-accent-emphasis)] shadow-sm"
+                    : "bg-canvas-subtle border-transparent hover:border-[var(--color-border-default)] hover:bg-canvas-default"
                 } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
               >
-                <div className="flex items-center gap-1.5">
-                  <span className={`${currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-muted"}`}>
-                    {preset.icon}
-                  </span>
-                  <span className={`text-[11px] font-medium ${currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-default"}`}>
+                <span className={currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-muted"}>
+                  {preset.icon}
+                </span>
+                <div className="text-left">
+                  <span className={`text-xs font-medium block ${currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-default"}`}>
                     {preset.name}
                   </span>
+                  <span className="text-[10px] text-fg-muted">{preset.description}</span>
                 </div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Right: Fine-tune sliders */}
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-fg-muted mb-2 font-medium uppercase tracking-wide">Fine-tune</p>
-          <div className="grid grid-cols-3 gap-4">
+        {/* Sliders Row */}
+        <div>
+          <p className="text-xs text-fg-muted mb-3">Fine-tune Parameters</p>
+          <div className="grid grid-cols-3 gap-6">
             <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Layers className="w-3.5 h-3.5 text-fg-muted" />
-                <span className="text-[11px] font-medium text-fg-default">Granularity</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-[var(--color-accent-fg)]" />
+                  <span className="text-xs font-medium text-fg-default">Granularity</span>
+                </div>
+                <span className="text-xs font-mono text-fg-muted">{config.granularity}</span>
               </div>
-              <VisualSlider
-                value={config.granularity}
-                onChange={(v) => handleConfigChange("granularity", v)}
+              <input
+                type="range"
                 min={1}
                 max={10}
+                value={config.granularity}
+                onChange={(e) => handleConfigChange("granularity", Number(e.target.value))}
                 disabled={disabled}
-                leftLabel="Few"
-                rightLabel="Many"
-                accentColor="accent"
+                className="w-full h-1.5 bg-canvas-subtle rounded-lg appearance-none cursor-pointer accent-[var(--color-accent-emphasis)]"
               />
+              <div className="flex justify-between mt-1 text-[10px] text-fg-muted">
+                <span>Few large</span>
+                <span>Many small</span>
+              </div>
             </div>
 
             <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Target className="w-3.5 h-3.5 text-fg-muted" />
-                <span className="text-[11px] font-medium text-fg-default">Min Size</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Target className="w-3.5 h-3.5 text-[var(--color-success-fg)]" />
+                  <span className="text-xs font-medium text-fg-default">Min Size</span>
+                </div>
+                <span className="text-xs font-mono text-fg-muted">{config.min_keywords_per_cluster}</span>
               </div>
-              <VisualSlider
-                value={config.min_keywords_per_cluster}
-                onChange={(v) => handleConfigChange("min_keywords_per_cluster", v)}
+              <input
+                type="range"
                 min={3}
                 max={30}
+                value={config.min_keywords_per_cluster}
+                onChange={(e) => handleConfigChange("min_keywords_per_cluster", Number(e.target.value))}
                 disabled={disabled}
-                leftLabel="3"
-                rightLabel="30"
-                accentColor="success"
+                className="w-full h-1.5 bg-canvas-subtle rounded-lg appearance-none cursor-pointer accent-[var(--color-success-emphasis)]"
               />
+              <div className="flex justify-between mt-1 text-[10px] text-fg-muted">
+                <span>3</span>
+                <span>30</span>
+              </div>
             </div>
 
             <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-fg-muted" />
-                <span className="text-[11px] font-medium text-fg-default">Coherence</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[var(--color-warning-fg)]" />
+                  <span className="text-xs font-medium text-fg-default">Coherence</span>
+                </div>
+                <span className="text-xs font-mono text-fg-muted">{config.cluster_coherence}</span>
               </div>
-              <VisualSlider
-                value={config.cluster_coherence}
-                onChange={(v) => handleConfigChange("cluster_coherence", v)}
+              <input
+                type="range"
                 min={1}
                 max={10}
+                value={config.cluster_coherence}
+                onChange={(e) => handleConfigChange("cluster_coherence", Number(e.target.value))}
                 disabled={disabled}
-                leftLabel="Loose"
-                rightLabel="Strict"
-                accentColor="warning"
+                className="w-full h-1.5 bg-canvas-subtle rounded-lg appearance-none cursor-pointer accent-[var(--color-warning-emphasis)]"
               />
+              <div className="flex justify-between mt-1 text-[10px] text-fg-muted">
+                <span>Loose</span>
+                <span>Strict</span>
+              </div>
             </div>
           </div>
         </div>

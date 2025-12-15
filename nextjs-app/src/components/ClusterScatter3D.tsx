@@ -169,8 +169,8 @@ export default function ClusterScatter3D({
 
   return (
     <div className="w-full">
-      {/* 3D Plot - full height when legend hidden */}
-      <div className={`w-full ${showLegend ? 'h-[420px]' : 'h-[500px]'} bg-canvas-subtle rounded-t-md overflow-hidden transition-all`}>
+      {/* 3D Plot */}
+      <div className="w-full h-[400px] bg-canvas-subtle rounded-md overflow-hidden">
         <Plot
           data={traces}
           layout={layout}
@@ -196,52 +196,44 @@ export default function ClusterScatter3D({
         />
       </div>
 
-      {/* Compact Legend Bar */}
-      <div className="bg-canvas-default border-t border-default rounded-b-md px-2 py-1.5">
-        <div className="flex items-center gap-2">
-          {/* Toggle */}
+      {/* Legend Section */}
+      <div className="mt-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-fg-muted">{clusterInfo.length} clusters</span>
           <button
             onClick={() => setShowLegend(!showLegend)}
-            className="flex items-center gap-1 text-[10px] text-fg-muted hover:text-fg-default transition-colors flex-shrink-0"
+            className="text-xs text-fg-muted hover:text-fg-default transition-colors"
           >
-            {showLegend ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-            <span className="font-medium">{clusterInfo.length}</span>
+            {showLegend ? "Hide" : "Show"}
           </button>
-
-          {/* Horizontal scrollable legend */}
-          {showLegend && (
-            <div className="flex-1 overflow-x-auto scrollbar-thin">
-              <div className="flex gap-1">
-                {clusterInfo.map((cluster) => (
-                  <button
-                    key={cluster.id}
-                    onClick={() => onClusterSelect?.(selectedCluster === cluster.id ? null : cluster.id)}
-                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap transition-all flex-shrink-0 ${
-                      selectedCluster === cluster.id
-                        ? "ring-1 ring-[var(--color-accent-emphasis)]"
-                        : selectedCluster !== null
-                        ? "opacity-30 hover:opacity-60"
-                        : "hover:opacity-80"
-                    }`}
-                    style={{
-                      backgroundColor: `${cluster.color}20`,
-                    }}
-                    title={`${cluster.label} (${cluster.count} keywords)`}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: cluster.color }}
-                    />
-                    <span className="text-fg-default font-medium max-w-[80px] truncate">
-                      {cluster.label}
-                    </span>
-                    <span className="text-fg-muted">{cluster.count}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
+        {showLegend && (
+          <div className="flex flex-wrap gap-2">
+            {clusterInfo.map((cluster) => (
+              <button
+                key={cluster.id}
+                onClick={() => onClusterSelect?.(selectedCluster === cluster.id ? null : cluster.id)}
+                className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border transition-all ${
+                  selectedCluster === cluster.id
+                    ? "border-[var(--color-accent-emphasis)] bg-[var(--color-accent-subtle)]"
+                    : selectedCluster !== null
+                    ? "border-transparent bg-canvas-subtle opacity-40 hover:opacity-70"
+                    : "border-transparent bg-canvas-subtle hover:bg-canvas-default"
+                }`}
+                title={`${cluster.label} (${cluster.count} keywords)`}
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: cluster.color }}
+                />
+                <span className="text-xs text-fg-default font-medium truncate max-w-[120px]">
+                  {cluster.label}
+                </span>
+                <span className="text-xs text-fg-muted">{cluster.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -233,7 +233,7 @@ export default function ClusterScatterInteractive({
       </div>
 
       {/* Chart */}
-      <div className="h-[380px] bg-canvas-subtle rounded-md p-2">
+      <div className="h-[400px] bg-canvas-subtle rounded-md p-2">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
             <XAxis
@@ -280,49 +280,58 @@ export default function ClusterScatterInteractive({
         </ResponsiveContainer>
       </div>
 
-      {/* Compact Horizontal Legend */}
-      <div className="flex items-center gap-2 bg-canvas-default border border-default rounded-md px-2 py-1.5">
-        <span className="text-[10px] text-fg-muted flex-shrink-0">{uniqueClusters.length} clusters</span>
-        <div className="flex-1 overflow-x-auto scrollbar-thin">
-          <div className="flex gap-1">
-            {uniqueClusters
-              .sort((a, b) => (clusterCounts[b] || 0) - (clusterCounts[a] || 0))
-              .map((cluster) => {
-                const isHidden = hiddenClusters.has(cluster);
-                const isSelected = selectedCluster === cluster;
-                const count = clusterCounts[cluster] || 0;
+      {/* Legend Section */}
+      <div className="mt-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-fg-muted">{uniqueClusters.length} clusters</span>
+          <button
+            onClick={() => {
+              if (hiddenClusters.size > 0) {
+                setHiddenClusters(new Set());
+              } else {
+                setHiddenClusters(new Set(uniqueClusters));
+              }
+            }}
+            className="text-xs text-fg-muted hover:text-fg-default transition-colors"
+          >
+            {hiddenClusters.size > 0 ? "Show All" : "Hide All"}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {uniqueClusters
+            .sort((a, b) => (clusterCounts[b] || 0) - (clusterCounts[a] || 0))
+            .map((cluster) => {
+              const isHidden = hiddenClusters.has(cluster);
+              const isSelected = selectedCluster === cluster;
+              const count = clusterCounts[cluster] || 0;
 
-                return (
-                  <button
-                    key={cluster}
-                    onClick={() => handleLegendClick(cluster)}
-                    onDoubleClick={() => toggleCluster(cluster)}
-                    title={`${clusterLabels[cluster] || `Cluster ${cluster}`} (${count}) - Double-click to ${isHidden ? 'show' : 'hide'}`}
-                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap transition-all flex-shrink-0 ${
-                      isHidden ? "opacity-30" : ""
-                    } ${
-                      isSelected
-                        ? "ring-1 ring-[var(--color-accent-emphasis)]"
-                        : selectedCluster !== null
-                        ? "opacity-30 hover:opacity-60"
-                        : "hover:opacity-80"
-                    }`}
-                    style={{
-                      backgroundColor: `${COLORS[cluster % COLORS.length]}20`,
-                    }}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: COLORS[cluster % COLORS.length] }}
-                    />
-                    <span className={`text-fg-default font-medium max-w-[80px] truncate ${isHidden ? "line-through" : ""}`}>
-                      {clusterLabels[cluster] || `Cluster ${cluster}`}
-                    </span>
-                    <span className="text-fg-muted">{count}</span>
-                  </button>
-                );
-              })}
-          </div>
+              return (
+                <button
+                  key={cluster}
+                  onClick={() => handleLegendClick(cluster)}
+                  onDoubleClick={() => toggleCluster(cluster)}
+                  title={`${clusterLabels[cluster] || `Cluster ${cluster}`} (${count}) - Double-click to ${isHidden ? 'show' : 'hide'}`}
+                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border transition-all ${
+                    isHidden ? "opacity-30" : ""
+                  } ${
+                    isSelected
+                      ? "border-[var(--color-accent-emphasis)] bg-[var(--color-accent-subtle)]"
+                      : selectedCluster !== null
+                      ? "border-transparent bg-canvas-subtle opacity-40 hover:opacity-70"
+                      : "border-transparent bg-canvas-subtle hover:bg-canvas-default"
+                  }`}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: COLORS[cluster % COLORS.length] }}
+                  />
+                  <span className={`text-xs text-fg-default font-medium truncate max-w-[120px] ${isHidden ? "line-through" : ""}`}>
+                    {clusterLabels[cluster] || `Cluster ${cluster}`}
+                  </span>
+                  <span className="text-xs text-fg-muted">{count}</span>
+                </button>
+              );
+            })}
         </div>
       </div>
     </div>
