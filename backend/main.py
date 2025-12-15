@@ -151,10 +151,10 @@ def get_openai_embeddings_parallel(
     return np.array(all_embeddings)
 
 
-def reassign_outliers_to_nearest_cluster(embeddings: np.ndarray, clusters: np.ndarray, k: int = 5) -> np.ndarray:
+def reassign_outliers_to_nearest_cluster(embeddings: np.ndarray, clusters: np.ndarray, k: int = 5, min_similarity: float = 0.3) -> np.ndarray:
     """
     Reassign outlier points to their nearest cluster using k-NN voting.
-    Uses majority vote among k nearest neighbors for more robust assignment.
+    Only reassigns if the outlier is sufficiently similar to the target cluster.
     """
     outlier_indices = np.where(clusters == -1)[0]
     non_outlier_indices = np.where(clusters != -1)[0]
@@ -166,8 +166,16 @@ def reassign_outliers_to_nearest_cluster(embeddings: np.ndarray, clusters: np.nd
     non_outlier_embeddings = embeddings[non_outlier_indices]
     similarities = cosine_similarity(outlier_embeddings, non_outlier_embeddings)
 
+    # Calculate cluster centroids for similarity check
+    unique_clusters = [c for c in np.unique(clusters) if c != -1]
+    centroids = {}
+    for c in unique_clusters:
+        mask = clusters == c
+        centroids[c] = embeddings[mask].mean(axis=0)
+
     new_clusters = clusters.copy()
-    k_actual = min(k, len(non_outlier_indices))  # Can't use more neighbors than we have
+    k_actual = min(k, len(non_outlier_indices))
+    kept_as_outlier = 0
 
     for i, outlier_idx in enumerate(outlier_indices):
         # Get top-k nearest neighbors
@@ -177,7 +185,20 @@ def reassign_outliers_to_nearest_cluster(embeddings: np.ndarray, clusters: np.nd
         # Majority vote among k nearest neighbors
         cluster_votes = Counter(top_k_clusters)
         best_cluster = cluster_votes.most_common(1)[0][0]
-        new_clusters[outlier_idx] = best_cluster
+
+        # Quality check: only reassign if similar enough to cluster centroid
+        outlier_vec = outlier_embeddings[i].reshape(1, -1)
+        centroid_vec = centroids[best_cluster].reshape(1, -1)
+        sim_to_centroid = cosine_similarity(outlier_vec, centroid_vec)[0][0]
+
+        if sim_to_centroid >= min_similarity:
+            new_clusters[outlier_idx] = best_cluster
+        else:
+            # Keep as outlier - will be assigned to largest cluster later
+            kept_as_outlier += 1
+
+    if kept_as_outlier > 0:
+        print(f"[DEBUG] {kept_as_outlier} outliers kept (low similarity to nearest cluster)")
 
     return new_clusters
 
@@ -377,28 +398,28 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     """
     n_samples = len(embeddings)
 
-    # Tighter thresholds for better balance
-    max_cluster_size = max(250, n_samples // 12)  # ~8% of dataset or 250
-    min_cluster_size = max(5, n_samples // 500)  # 0.2% of dataset
-    min_cluster_size = min(min_cluster_size, 15)  # Cap at 15
-    tiny_cluster_threshold = max(3, min_cluster_size // 2)  # Clusters smaller than this get merged
+    # Quality-focused thresholds
+    max_cluster_size = max(300, n_samples // 10)  # 10% of dataset or 300
+    min_cluster_size = max(8, n_samples // 200)   # 0.5% of dataset, minimum 8 for quality
+    min_cluster_size = min(min_cluster_size, 25)  # Cap at 25
+    tiny_cluster_threshold = max(5, min_cluster_size // 2)
 
-    # Reduce dimensions with UMAP
-    # Key: min_dist > 0 prevents packing points too tightly, preserving semantic gaps
-    n_components = min(50, n_samples - 1)
+    # UMAP: Prioritize preserving semantic structure
+    n_components = min(30, n_samples - 1)  # Fewer components = less distortion
     umap_reducer = UMAP(
         n_components=n_components,
-        n_neighbors=8,          # Lower = more local structure preserved
-        min_dist=0.1,           # KEY CHANGE: spread points out to preserve semantic gaps
-        metric='cosine',
+        n_neighbors=5,          # Very local structure - tight semantic neighborhoods
+        min_dist=0.25,          # Higher = more separation, preserves semantic gaps
+        metric='cosine',        # Cosine is best for text embeddings
         random_state=42,
         n_jobs=1
     )
     reduced_embeddings = umap_reducer.fit_transform(embeddings)
 
+    # HDBSCAN: Conservative settings for quality clusters
     hdbscan_params = {
         'min_cluster_size': min_cluster_size,
-        'min_samples': 2,
+        'min_samples': 3,               # Higher = more conservative, better quality
         'cluster_selection_epsilon': 0.0,
         'cluster_selection_method': 'eom',
         'metric': 'euclidean',
