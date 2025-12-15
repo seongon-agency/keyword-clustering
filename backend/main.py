@@ -81,6 +81,16 @@ class ClusteringConfig(BaseModel):
     # Cluster coherence: How similar must keywords be? (1=loose, 10=strict)
     cluster_coherence: int = 5
 
+    # Cluster selection method: 'eom' (variable density) or 'leaf' (homogeneous)
+    # 'leaf' creates tighter, more uniform clusters
+    cluster_method: str = "eom"
+
+    # Whether to merge very similar clusters together
+    merge_clusters: bool = True
+
+    # Whether to assign outliers to nearest cluster or keep them separate
+    assign_outliers: bool = True
+
 
 # Preset configurations - make them VERY different for visible impact
 CLUSTERING_PRESETS = {
@@ -88,25 +98,37 @@ CLUSTERING_PRESETS = {
         target_clusters=0,
         granularity=5,
         min_keywords_per_cluster=8,
-        cluster_coherence=5
+        cluster_coherence=5,
+        cluster_method="eom",
+        merge_clusters=True,
+        assign_outliers=True
     ),
     "few_large": ClusteringConfig(
         target_clusters=0,
         granularity=2,
         min_keywords_per_cluster=20,
-        cluster_coherence=3
+        cluster_coherence=3,
+        cluster_method="eom",
+        merge_clusters=True,
+        assign_outliers=True
     ),
     "many_small": ClusteringConfig(
         target_clusters=0,
         granularity=9,
         min_keywords_per_cluster=5,
-        cluster_coherence=7
+        cluster_coherence=7,
+        cluster_method="leaf",
+        merge_clusters=False,
+        assign_outliers=True
     ),
     "strict_quality": ClusteringConfig(
         target_clusters=0,
         granularity=6,
         min_keywords_per_cluster=10,
-        cluster_coherence=9
+        cluster_coherence=9,
+        cluster_method="leaf",
+        merge_clusters=False,
+        assign_outliers=False
     )
 }
 
@@ -480,6 +502,9 @@ def translate_config_to_params(config: ClusteringConfig, n_samples: int) -> dict
     # Target clusters (if specified by user)
     target_clusters = config.target_clusters if config.target_clusters > 0 else None
 
+    # Cluster selection method from config
+    cluster_method = config.cluster_method if config.cluster_method in ['eom', 'leaf'] else 'eom'
+
     return {
         'umap_min_dist': round(umap_min_dist, 2),
         'umap_n_neighbors': umap_n_neighbors,
@@ -488,6 +513,9 @@ def translate_config_to_params(config: ClusteringConfig, n_samples: int) -> dict
         'hdbscan_min_samples': hdbscan_min_samples,
         'outlier_min_similarity': round(outlier_min_similarity, 2),
         'target_clusters': target_clusters,
+        'cluster_method': cluster_method,
+        'merge_clusters': config.merge_clusters,
+        'assign_outliers': config.assign_outliers,
     }
 
 
@@ -530,10 +558,11 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int, config: Clusteri
         'min_cluster_size': min_cluster_size,
         'min_samples': params['hdbscan_min_samples'],
         'cluster_selection_epsilon': 0.0,
-        'cluster_selection_method': 'eom',
+        'cluster_selection_method': params['cluster_method'],
         'metric': 'euclidean',
         'core_dist_n_jobs': -1
     }
+    print(f"[DEBUG] HDBSCAN cluster_selection_method: {params['cluster_method']}")
 
     clusterer = hdbscan.HDBSCAN(**hdbscan_params)
     all_clusters = clusterer.fit_predict(reduced_embeddings)
@@ -541,11 +570,13 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int, config: Clusteri
     print(f"[DEBUG] HDBSCAN initial: {len(np.unique(all_clusters))} clusters, outliers: {np.sum(all_clusters == -1)}/{n_samples}")
 
     # Reassign outliers using k-NN voting with quality threshold from config
-    if np.sum(all_clusters == -1) > 0:
+    if params['assign_outliers'] and np.sum(all_clusters == -1) > 0:
         all_clusters = reassign_outliers_to_nearest_cluster(
             reduced_embeddings, all_clusters, k=5,
             min_similarity=params['outlier_min_similarity']
         )
+    elif not params['assign_outliers']:
+        print(f"[DEBUG] Keeping {np.sum(all_clusters == -1)} outliers as separate (assign_outliers=False)")
 
     # Recursively subdivide oversized clusters
     max_iterations = 10  # Increased iterations
@@ -644,9 +675,14 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int, config: Clusteri
     num_clusters = len(np.unique(all_clusters))
     print(f"[DEBUG] Final: {num_clusters} clusters")
 
-    # Light merge only if too many clusters
-    if num_clusters > 50:
-        all_clusters = merge_similar_clusters(reduced_embeddings, all_clusters, similarity_threshold=0.93)
+    # Merge similar clusters if enabled
+    if params['merge_clusters']:
+        # Light merge only if too many clusters
+        if num_clusters > 50:
+            all_clusters = merge_similar_clusters(reduced_embeddings, all_clusters, similarity_threshold=0.93)
+            print(f"[DEBUG] After merge: {len(np.unique(all_clusters))} clusters")
+    else:
+        print(f"[DEBUG] Skipping cluster merge (merge_clusters=False)")
 
     return all_clusters
 
@@ -973,6 +1009,7 @@ async def get_clustering_config():
             "granularity": {
                 "name": "Cluster Granularity",
                 "description": "How fine-grained should the clusters be? Lower = fewer large clusters, Higher = many smaller clusters.",
+                "type": "slider",
                 "min": 1,
                 "max": 10,
                 "default": 5,
@@ -982,6 +1019,7 @@ async def get_clustering_config():
             "min_keywords_per_cluster": {
                 "name": "Minimum Keywords per Cluster",
                 "description": "The minimum number of keywords required to form a cluster. Smaller values allow more niche clusters.",
+                "type": "slider",
                 "min": 3,
                 "max": 30,
                 "default": 8,
@@ -991,31 +1029,54 @@ async def get_clustering_config():
             "cluster_coherence": {
                 "name": "Cluster Coherence",
                 "description": "How similar must keywords be to belong to the same cluster? Higher = stricter grouping, more outliers.",
+                "type": "slider",
                 "min": 1,
                 "max": 10,
                 "default": 5,
                 "low_label": "Loose (include more)",
                 "high_label": "Strict (only similar)"
+            },
+            "cluster_method": {
+                "name": "Detection Method",
+                "description": "Algorithm for detecting cluster boundaries. 'Balanced' finds variable-size clusters, 'Tight' creates more uniform groups.",
+                "type": "toggle",
+                "options": [
+                    {"value": "eom", "label": "Balanced"},
+                    {"value": "leaf", "label": "Tight"}
+                ],
+                "default": "eom"
+            },
+            "merge_clusters": {
+                "name": "Merge Similar",
+                "description": "Automatically merge clusters that are very similar to each other.",
+                "type": "boolean",
+                "default": True
+            },
+            "assign_outliers": {
+                "name": "Assign Outliers",
+                "description": "Assign keywords that don't fit well to the nearest cluster, or keep them separate.",
+                "type": "boolean",
+                "default": True
             }
         },
         "presets": {
             "recommended": {
-                "name": "Recommended",
+                "name": "Balanced",
                 "description": "Balanced settings that work well for most keyword sets",
                 "config": CLUSTERING_PRESETS["recommended"].model_dump()
             },
             "few_large": {
-                "name": "Few Large Clusters",
+                "name": "Broad",
                 "description": "Create fewer, broader clusters with more keywords each",
                 "config": CLUSTERING_PRESETS["few_large"].model_dump()
             },
             "many_small": {
-                "name": "Many Small Clusters",
+                "name": "Granular",
                 "description": "Create more granular clusters with smaller, focused groups",
                 "config": CLUSTERING_PRESETS["many_small"].model_dump()
             },
             "strict_quality": {
-                "name": "Strict Quality",
+                "name": "Strict",
                 "description": "Prioritize cluster coherence - only group very similar keywords",
                 "config": CLUSTERING_PRESETS["strict_quality"].model_dump()
             }

@@ -350,31 +350,32 @@ export default function FileUpload({
         </div>
       )}
 
-      {/* Language Selection */}
-      <div className="flex items-center justify-between mt-4 mb-3 px-1">
-        <div className="flex items-center gap-2">
-          <Globe className="w-3.5 h-3.5 text-fg-muted" />
-          <span className="text-xs text-fg-muted">Language</span>
+      {/* Settings Section */}
+      <div className="mt-4 pt-4 border-t border-default space-y-4">
+        {/* Language */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-fg-muted" />
+            <span className="text-sm font-medium text-fg-default">Language</span>
+          </div>
+          <div className="gh-segmented">
+            {([
+              { code: "Vietnamese", label: "VN" },
+              { code: "English", label: "EN" },
+            ] as const).map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => setLanguage(lang.code)}
+                disabled={isProcessing}
+                className={`gh-segmented-btn ${language === lang.code ? "active" : ""}`}
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="gh-segmented">
-          {([
-            { code: "Vietnamese", label: "VN" },
-            { code: "English", label: "EN" },
-          ] as const).map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => setLanguage(lang.code)}
-              disabled={isProcessing}
-              className={`gh-segmented-btn ${language === lang.code ? "active" : ""}`}
-            >
-              {lang.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
-      {/* Clustering Settings - Always visible */}
-      <div className="mt-4 mb-4">
+        {/* Clustering Mode */}
         <ClusteringConfigPanel
           config={clusteringConfig}
           onChange={setClusteringConfig}
@@ -386,7 +387,7 @@ export default function FileUpload({
       <button
         onClick={handleProcess}
         disabled={disabled || !canProcess || isProcessing}
-        className="gh-btn gh-btn-primary w-full py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="gh-btn gh-btn-primary w-full py-2.5 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isProcessing ? (
           <>

@@ -512,23 +512,25 @@ export default function Results({
         </div>
       </div>
 
-      {/* Re-clustering Panel - Always visible at bottom */}
+      {/* Re-clustering Section */}
       <div className="gh-box p-4">
-        {/* Header row */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-md bg-[var(--color-accent-emphasis)]">
-              <RefreshCw className={`w-4 h-4 text-white ${isProcessing ? 'animate-spin' : ''}`} />
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-3">
+              <RefreshCw className={`w-4 h-4 text-fg-muted ${isProcessing ? 'animate-spin' : ''}`} />
+              <span className="text-sm font-medium text-fg-default">Adjust & Re-cluster</span>
             </div>
-            <div>
-              <h3 className="font-semibold text-fg-default text-sm">Re-cluster Keywords</h3>
-              <p className="text-xs text-fg-muted">Adjust settings and run clustering again</p>
-            </div>
+            <ClusteringConfigPanel
+              config={currentConfig}
+              onChange={onConfigChange}
+              disabled={isProcessing}
+              compact={true}
+            />
           </div>
           <button
             onClick={() => onRecluster(currentConfig)}
             disabled={isProcessing}
-            className="gh-btn gh-btn-primary"
+            className="gh-btn gh-btn-primary flex-shrink-0"
           >
             {isProcessing ? (
               <>
@@ -543,14 +545,6 @@ export default function Results({
             )}
           </button>
         </div>
-
-        {/* Config panel */}
-        <ClusteringConfigPanel
-          config={currentConfig}
-          onChange={onConfigChange}
-          disabled={isProcessing}
-          compact={true}
-        />
       </div>
     </div>
   );

@@ -1,40 +1,71 @@
 "use client";
 
 import { useState } from "react";
-import { Settings2, Layers, Target, Sparkles, ChevronDown, ChevronUp, HelpCircle, Grid3X3, LayoutGrid, Grid2X2 } from "lucide-react";
+import { Settings2, ChevronDown, ChevronUp } from "lucide-react";
 
 export interface ClusteringConfig {
   target_clusters: number;
   granularity: number;
   min_keywords_per_cluster: number;
   cluster_coherence: number;
+  cluster_method: "eom" | "leaf";
+  merge_clusters: boolean;
+  assign_outliers: boolean;
 }
 
-// Presets matching backend - now with very different settings for visible impact
-export const CLUSTERING_PRESETS: Record<string, { name: string; description: string; icon: React.ReactNode; config: ClusteringConfig }> = {
+// Simplified presets with clear, distinct configurations
+export const CLUSTERING_PRESETS: Record<string, { name: string; hint: string; config: ClusteringConfig }> = {
   recommended: {
-    name: "Recommended",
-    description: "Balanced settings for most keyword sets",
-    icon: <Grid2X2 className="w-5 h-5" />,
-    config: { target_clusters: 0, granularity: 5, min_keywords_per_cluster: 8, cluster_coherence: 5 }
+    name: "Balanced",
+    hint: "Default",
+    config: {
+      target_clusters: 0,
+      granularity: 5,
+      min_keywords_per_cluster: 8,
+      cluster_coherence: 5,
+      cluster_method: "eom",
+      merge_clusters: true,
+      assign_outliers: true
+    }
   },
   few_large: {
-    name: "Few Large",
-    description: "Fewer, broader clusters",
-    icon: <LayoutGrid className="w-5 h-5" />,
-    config: { target_clusters: 0, granularity: 2, min_keywords_per_cluster: 20, cluster_coherence: 3 }
+    name: "Broad",
+    hint: "Fewer clusters",
+    config: {
+      target_clusters: 0,
+      granularity: 2,
+      min_keywords_per_cluster: 20,
+      cluster_coherence: 3,
+      cluster_method: "eom",
+      merge_clusters: true,
+      assign_outliers: true
+    }
   },
   many_small: {
-    name: "Many Small",
-    description: "More granular clusters",
-    icon: <Grid3X3 className="w-5 h-5" />,
-    config: { target_clusters: 0, granularity: 9, min_keywords_per_cluster: 5, cluster_coherence: 7 }
+    name: "Granular",
+    hint: "More clusters",
+    config: {
+      target_clusters: 0,
+      granularity: 9,
+      min_keywords_per_cluster: 5,
+      cluster_coherence: 7,
+      cluster_method: "leaf",
+      merge_clusters: false,
+      assign_outliers: true
+    }
   },
   strict_quality: {
-    name: "Strict Quality",
-    description: "Only very similar keywords",
-    icon: <Target className="w-5 h-5" />,
-    config: { target_clusters: 0, granularity: 6, min_keywords_per_cluster: 10, cluster_coherence: 9 }
+    name: "Strict",
+    hint: "High similarity",
+    config: {
+      target_clusters: 0,
+      granularity: 6,
+      min_keywords_per_cluster: 10,
+      cluster_coherence: 9,
+      cluster_method: "leaf",
+      merge_clusters: false,
+      assign_outliers: false
+    }
   }
 };
 
@@ -45,112 +76,138 @@ interface ClusteringConfigPanelProps {
   compact?: boolean;
 }
 
-// Visual slider with gradient track
-function VisualSlider({
+// Clean slider component
+function Slider({
+  label,
   value,
   onChange,
   min,
   max,
   disabled,
-  leftIcon,
-  rightIcon,
-  leftLabel,
-  rightLabel,
-  accentColor = "accent",
+  leftHint,
+  rightHint,
 }: {
+  label: string;
   value: number;
   onChange: (value: number) => void;
   min: number;
   max: number;
   disabled?: boolean;
-  leftIcon?: React.ReactNode;
-  rightIcon?: React.ReactNode;
-  leftLabel: string;
-  rightLabel: string;
-  accentColor?: "accent" | "success" | "warning";
+  leftHint: string;
+  rightHint: string;
 }) {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  const colorVar = accentColor === "accent"
-    ? "var(--color-accent-emphasis)"
-    : accentColor === "success"
-    ? "var(--color-success-emphasis)"
-    : "var(--color-warning-emphasis)";
-
-  // Dynamic class for thumb color based on accent
-  const thumbBgClass = accentColor === "accent"
-    ? "[&::-webkit-slider-thumb]:bg-[var(--color-accent-emphasis)] [&::-moz-range-thumb]:bg-[var(--color-accent-emphasis)]"
-    : accentColor === "success"
-    ? "[&::-webkit-slider-thumb]:bg-[var(--color-success-emphasis)] [&::-moz-range-thumb]:bg-[var(--color-success-emphasis)]"
-    : "[&::-webkit-slider-thumb]:bg-[var(--color-warning-emphasis)] [&::-moz-range-thumb]:bg-[var(--color-warning-emphasis)]";
-
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between text-xs text-fg-muted">
-        <span className="flex items-center gap-1.5">
-          {leftIcon}
-          {leftLabel}
-        </span>
-        <span className="flex items-center gap-1.5">
-          {rightLabel}
-          {rightIcon}
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-fg-muted">{label}</span>
+        <span className="text-xs font-mono font-medium text-fg-default bg-canvas-subtle px-1.5 py-0.5 rounded">
+          {value}
         </span>
       </div>
-      <div className="relative">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          disabled={disabled}
-          className={`w-full h-2 bg-canvas-subtle rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed
-            [&::-webkit-slider-thumb]:appearance-none
-            [&::-webkit-slider-thumb]:w-5
-            [&::-webkit-slider-thumb]:h-5
-            [&::-webkit-slider-thumb]:rounded-full
-            [&::-webkit-slider-thumb]:cursor-pointer
-            [&::-webkit-slider-thumb]:transition-all
-            [&::-webkit-slider-thumb]:hover:scale-110
-            [&::-webkit-slider-thumb]:shadow-lg
-            [&::-webkit-slider-thumb]:border-2
-            [&::-webkit-slider-thumb]:border-white
-            [&::-moz-range-thumb]:w-5
-            [&::-moz-range-thumb]:h-5
-            [&::-moz-range-thumb]:rounded-full
-            [&::-moz-range-thumb]:cursor-pointer
-            [&::-moz-range-thumb]:border-2
-            [&::-moz-range-thumb]:border-white
-            ${thumbBgClass}`}
-          style={{
-            background: `linear-gradient(to right, ${colorVar} 0%, ${colorVar} ${percentage}%, var(--color-canvas-subtle) ${percentage}%, var(--color-canvas-subtle) 100%)`,
-          }}
-        />
-        {/* Value badge */}
-        <div
-          className="absolute -top-1 transform -translate-x-1/2 pointer-events-none"
-          style={{ left: `${percentage}%` }}
-        >
-          <span
-            className="inline-block px-1.5 py-0.5 text-[10px] font-bold text-white rounded shadow-sm"
-            style={{ backgroundColor: colorVar }}
-          >
-            {value}
-          </span>
-        </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
+        className="w-full h-1.5 bg-[var(--color-border-default)] rounded-full appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed
+          [&::-webkit-slider-thumb]:appearance-none
+          [&::-webkit-slider-thumb]:w-3.5
+          [&::-webkit-slider-thumb]:h-3.5
+          [&::-webkit-slider-thumb]:rounded-full
+          [&::-webkit-slider-thumb]:bg-[var(--color-accent-emphasis)]
+          [&::-webkit-slider-thumb]:cursor-pointer
+          [&::-webkit-slider-thumb]:transition-transform
+          [&::-webkit-slider-thumb]:hover:scale-110
+          [&::-moz-range-thumb]:w-3.5
+          [&::-moz-range-thumb]:h-3.5
+          [&::-moz-range-thumb]:rounded-full
+          [&::-moz-range-thumb]:bg-[var(--color-accent-emphasis)]
+          [&::-moz-range-thumb]:border-0
+          [&::-moz-range-thumb]:cursor-pointer"
+      />
+      <div className="flex justify-between text-[10px] text-fg-subtle">
+        <span>{leftHint}</span>
+        <span>{rightHint}</span>
       </div>
     </div>
   );
 }
 
-// Tooltip component
-function Tooltip({ text }: { text: string }) {
+// Toggle component for binary choices
+function Toggle({
+  label,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
-    <div className="group relative inline-block">
-      <HelpCircle className="w-3.5 h-3.5 text-fg-muted cursor-help" />
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[var(--color-neutral-emphasis)] text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 max-w-[200px] text-center whitespace-normal">
-        {text}
-        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--color-neutral-emphasis)]" />
+    <label className={`flex items-center justify-between py-1 ${disabled ? "opacity-50" : "cursor-pointer"}`}>
+      <span className="text-xs text-fg-muted">{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+          checked ? "bg-[var(--color-accent-emphasis)]" : "bg-[var(--color-border-default)]"
+        } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+      >
+        <span
+          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
+            checked ? "translate-x-4" : "translate-x-1"
+          }`}
+        />
+      </button>
+    </label>
+  );
+}
+
+// Segmented control for method selection
+function MethodToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: "eom" | "leaf";
+  onChange: (value: "eom" | "leaf") => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <span className="text-xs text-fg-muted">Detection method</span>
+      <div className="flex gap-1 p-0.5 bg-canvas-subtle rounded-md">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange("eom")}
+          className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
+            value === "eom"
+              ? "bg-canvas-default text-fg-default shadow-sm"
+              : "text-fg-muted hover:text-fg-default"
+          } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+        >
+          Balanced
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange("leaf")}
+          className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
+            value === "leaf"
+              ? "bg-canvas-default text-fg-default shadow-sm"
+              : "text-fg-muted hover:text-fg-default"
+          } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+        >
+          Tight
+        </button>
       </div>
     </div>
   );
@@ -162,7 +219,7 @@ export default function ClusteringConfigPanel({
   disabled = false,
   compact = false,
 }: ClusteringConfigPanelProps) {
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showTuning, setShowTuning] = useState(false);
 
   const handlePresetChange = (presetKey: string) => {
     const preset = CLUSTERING_PRESETS[presetKey];
@@ -171,17 +228,21 @@ export default function ClusteringConfigPanel({
     }
   };
 
-  const handleConfigChange = (key: keyof ClusteringConfig, value: number) => {
+  const handleConfigChange = <K extends keyof ClusteringConfig>(key: K, value: ClusteringConfig[K]) => {
     onChange({ ...config, [key]: value });
   };
 
   // Check if current config matches a preset
   const getMatchingPreset = () => {
     for (const [key, preset] of Object.entries(CLUSTERING_PRESETS)) {
+      const p = preset.config;
       if (
-        preset.config.granularity === config.granularity &&
-        preset.config.min_keywords_per_cluster === config.min_keywords_per_cluster &&
-        preset.config.cluster_coherence === config.cluster_coherence
+        p.granularity === config.granularity &&
+        p.min_keywords_per_cluster === config.min_keywords_per_cluster &&
+        p.cluster_coherence === config.cluster_coherence &&
+        p.cluster_method === config.cluster_method &&
+        p.merge_clusters === config.merge_clusters &&
+        p.assign_outliers === config.assign_outliers
       ) {
         return key;
       }
@@ -191,240 +252,103 @@ export default function ClusteringConfigPanel({
 
   const currentPreset = getMatchingPreset();
 
-  // Compact mode for re-clustering in results view
-  if (compact) {
-    return (
-      <div className="space-y-4">
-        {/* Presets Row */}
-        <div>
-          <p className="text-xs text-fg-muted mb-2">Quick Presets</p>
-          <div className="flex gap-2">
-            {Object.entries(CLUSTERING_PRESETS).map(([key, preset]) => (
-              <button
-                key={key}
-                onClick={() => handlePresetChange(key)}
-                disabled={disabled}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-                  currentPreset === key
-                    ? "bg-[var(--color-accent-subtle)] border-[var(--color-accent-emphasis)] shadow-sm"
-                    : "bg-canvas-subtle border-transparent hover:border-[var(--color-border-default)] hover:bg-canvas-default"
-                } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-              >
-                <span className={currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-muted"}>
-                  {preset.icon}
-                </span>
-                <div className="text-left">
-                  <span className={`text-xs font-medium block ${currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-default"}`}>
-                    {preset.name}
-                  </span>
-                  <span className="text-[10px] text-fg-muted">{preset.description}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Sliders Row */}
-        <div>
-          <p className="text-xs text-fg-muted mb-3">Fine-tune Parameters</p>
-          <div className="grid grid-cols-3 gap-6">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-[var(--color-accent-fg)]" />
-                  <span className="text-xs font-medium text-fg-default">Granularity</span>
-                </div>
-                <span className="text-xs font-mono text-fg-muted">{config.granularity}</span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                value={config.granularity}
-                onChange={(e) => handleConfigChange("granularity", Number(e.target.value))}
-                disabled={disabled}
-                className="w-full h-1.5 bg-canvas-subtle rounded-lg appearance-none cursor-pointer accent-[var(--color-accent-emphasis)]"
-              />
-              <div className="flex justify-between mt-1 text-[10px] text-fg-muted">
-                <span>Few large</span>
-                <span>Many small</span>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <Target className="w-3.5 h-3.5 text-[var(--color-success-fg)]" />
-                  <span className="text-xs font-medium text-fg-default">Min Size</span>
-                </div>
-                <span className="text-xs font-mono text-fg-muted">{config.min_keywords_per_cluster}</span>
-              </div>
-              <input
-                type="range"
-                min={3}
-                max={30}
-                value={config.min_keywords_per_cluster}
-                onChange={(e) => handleConfigChange("min_keywords_per_cluster", Number(e.target.value))}
-                disabled={disabled}
-                className="w-full h-1.5 bg-canvas-subtle rounded-lg appearance-none cursor-pointer accent-[var(--color-success-emphasis)]"
-              />
-              <div className="flex justify-between mt-1 text-[10px] text-fg-muted">
-                <span>3</span>
-                <span>30</span>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[var(--color-warning-fg)]" />
-                  <span className="text-xs font-medium text-fg-default">Coherence</span>
-                </div>
-                <span className="text-xs font-mono text-fg-muted">{config.cluster_coherence}</span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                value={config.cluster_coherence}
-                onChange={(e) => handleConfigChange("cluster_coherence", Number(e.target.value))}
-                disabled={disabled}
-                className="w-full h-1.5 bg-canvas-subtle rounded-lg appearance-none cursor-pointer accent-[var(--color-warning-emphasis)]"
-              />
-              <div className="flex justify-between mt-1 text-[10px] text-fg-muted">
-                <span>Loose</span>
-                <span>Strict</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Full mode for initial clustering setup
+  // Unified design for both modes
   return (
-    <div className="gh-box p-4 border-2 border-[var(--color-accent-emphasis)] bg-[var(--color-accent-subtle)]/30">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-md bg-[var(--color-accent-emphasis)]">
-            <Settings2 className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-fg-default text-sm">Clustering Style</h2>
-            <p className="text-[11px] text-fg-muted">Choose how keywords are grouped</p>
-          </div>
+    <div className="space-y-3">
+      {/* Header - only show in non-compact mode */}
+      {!compact && (
+        <div className="flex items-center gap-2 mb-1">
+          <Settings2 className="w-4 h-4 text-fg-muted" />
+          <span className="text-sm font-medium text-fg-default">Clustering Mode</span>
+          {currentPreset === "custom" && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-canvas-subtle text-fg-muted">Custom</span>
+          )}
         </div>
-        {currentPreset !== "custom" && (
-          <span className="gh-label gh-label-accent text-[10px] font-medium">
-            {CLUSTERING_PRESETS[currentPreset]?.name}
-          </span>
-        )}
-      </div>
+      )}
 
-      {/* Preset Cards - Prominent visual grid */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
+      {/* Preset buttons - pill style */}
+      <div className="flex flex-wrap gap-1.5">
         {Object.entries(CLUSTERING_PRESETS).map(([key, preset]) => (
           <button
             key={key}
             onClick={() => handlePresetChange(key)}
             disabled={disabled}
-            className={`relative p-3 rounded-lg border-2 transition-all text-left ${
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
               currentPreset === key
-                ? "bg-white dark:bg-[var(--color-canvas-default)] border-[var(--color-accent-emphasis)] shadow-lg ring-2 ring-[var(--color-accent-emphasis)]/20"
-                : "bg-canvas-subtle border-transparent hover:border-[var(--color-border-default)] hover:shadow-sm"
+                ? "bg-[var(--color-accent-emphasis)] text-white shadow-sm"
+                : "bg-canvas-subtle text-fg-muted hover:bg-canvas-inset hover:text-fg-default"
             } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
           >
-            <div className="flex items-start gap-2">
-              <span className={`mt-0.5 ${currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-muted"}`}>
-                {preset.icon}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className={`text-xs font-semibold ${currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-default"}`}>
-                  {preset.name}
-                </p>
-                <p className="text-[10px] text-fg-muted line-clamp-2 mt-0.5">
-                  {preset.description}
-                </p>
-              </div>
-            </div>
-            {currentPreset === key && (
-              <div className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-[var(--color-accent-emphasis)] shadow-sm" />
-            )}
+            {preset.name}
           </button>
         ))}
       </div>
 
-      {/* Advanced Toggle */}
+      {/* Tuning toggle */}
       <button
-        onClick={() => setShowAdvanced(!showAdvanced)}
+        onClick={() => setShowTuning(!showTuning)}
         disabled={disabled}
-        className="flex items-center justify-between w-full py-2 px-3 bg-canvas-default rounded-md text-xs text-fg-muted hover:text-fg-default transition-colors disabled:opacity-50 border border-default"
+        className="flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg-default transition-colors disabled:opacity-50"
       >
-        <span className="flex items-center gap-2">
-          <Settings2 className="w-3.5 h-3.5" />
-          Fine-tune Settings
-        </span>
-        {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        {showTuning ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        <span>{showTuning ? "Hide options" : "Fine-tune"}</span>
       </button>
 
-      {/* Advanced Sliders */}
-      {showAdvanced && (
-        <div className="mt-4 space-y-6 animate-fade-in p-3 bg-canvas-default rounded-md border border-default">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Layers className="w-4 h-4 text-[var(--color-accent-fg)]" />
-              <span className="text-xs font-semibold text-fg-default">Cluster Granularity</span>
-              <Tooltip text="How fine-grained should the clusters be? Lower = fewer large clusters, Higher = many smaller clusters." />
-            </div>
-            <VisualSlider
-              value={config.granularity}
-              onChange={(v) => handleConfigChange("granularity", v)}
-              min={1}
-              max={10}
-              disabled={disabled}
-              leftIcon={<LayoutGrid className="w-3.5 h-3.5" />}
-              rightIcon={<Grid3X3 className="w-3.5 h-3.5" />}
-              leftLabel="Few large clusters"
-              rightLabel="Many small clusters"
-              accentColor="accent"
-            />
-          </div>
+      {/* Advanced options */}
+      {showTuning && (
+        <div className={`space-y-4 pt-3 border-t border-default animate-fade-in ${compact ? "" : "pb-1"}`}>
+          {/* Sliders */}
+          <Slider
+            label="Granularity"
+            value={config.granularity}
+            onChange={(v) => handleConfigChange("granularity", v)}
+            min={1}
+            max={10}
+            disabled={disabled}
+            leftHint="Broad"
+            rightHint="Fine"
+          />
+          <Slider
+            label="Min cluster size"
+            value={config.min_keywords_per_cluster}
+            onChange={(v) => handleConfigChange("min_keywords_per_cluster", v)}
+            min={3}
+            max={30}
+            disabled={disabled}
+            leftHint="3"
+            rightHint="30"
+          />
+          <Slider
+            label="Coherence"
+            value={config.cluster_coherence}
+            onChange={(v) => handleConfigChange("cluster_coherence", v)}
+            min={1}
+            max={10}
+            disabled={disabled}
+            leftHint="Loose"
+            rightHint="Strict"
+          />
 
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Target className="w-4 h-4 text-[var(--color-success-fg)]" />
-              <span className="text-xs font-semibold text-fg-default">Minimum Keywords per Cluster</span>
-              <Tooltip text="The minimum number of keywords required to form a cluster. Smaller values allow more niche clusters." />
-            </div>
-            <VisualSlider
-              value={config.min_keywords_per_cluster}
-              onChange={(v) => handleConfigChange("min_keywords_per_cluster", v)}
-              min={3}
-              max={30}
-              disabled={disabled}
-              leftLabel="Small OK (3+)"
-              rightLabel="Larger only (30+)"
-              accentColor="success"
-            />
-          </div>
+          {/* Method toggle */}
+          <MethodToggle
+            value={config.cluster_method}
+            onChange={(v) => handleConfigChange("cluster_method", v)}
+            disabled={disabled}
+          />
 
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-[var(--color-warning-fg)]" />
-              <span className="text-xs font-semibold text-fg-default">Cluster Coherence</span>
-              <Tooltip text="How similar must keywords be to belong to the same cluster? Higher = stricter grouping, more outliers possible." />
-            </div>
-            <VisualSlider
-              value={config.cluster_coherence}
-              onChange={(v) => handleConfigChange("cluster_coherence", v)}
-              min={1}
-              max={10}
+          {/* Boolean toggles */}
+          <div className="space-y-1 pt-2 border-t border-default">
+            <Toggle
+              label="Merge similar clusters"
+              checked={config.merge_clusters}
+              onChange={(v) => handleConfigChange("merge_clusters", v)}
               disabled={disabled}
-              leftLabel="Loose (include more)"
-              rightLabel="Strict (only similar)"
-              accentColor="warning"
+            />
+            <Toggle
+              label="Assign outliers to nearest"
+              checked={config.assign_outliers}
+              onChange={(v) => handleConfigChange("assign_outliers", v)}
+              disabled={disabled}
             />
           </div>
         </div>
