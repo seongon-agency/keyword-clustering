@@ -23,6 +23,7 @@ import time
 from dotenv import load_dotenv
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import Counter
 
 # Load environment variables from parent directory (.env is in root)
 env_path = Path(__file__).parent.parent / ".env"
@@ -149,8 +150,11 @@ def get_openai_embeddings_parallel(
     return np.array(all_embeddings)
 
 
-def reassign_outliers_to_nearest_cluster(embeddings: np.ndarray, clusters: np.ndarray) -> np.ndarray:
-    """Reassign outlier points to their nearest cluster"""
+def reassign_outliers_to_nearest_cluster(embeddings: np.ndarray, clusters: np.ndarray, k: int = 5) -> np.ndarray:
+    """
+    Reassign outlier points to their nearest cluster using k-NN voting.
+    Uses majority vote among k nearest neighbors for more robust assignment.
+    """
     outlier_indices = np.where(clusters == -1)[0]
     non_outlier_indices = np.where(clusters != -1)[0]
 
@@ -162,9 +166,17 @@ def reassign_outliers_to_nearest_cluster(embeddings: np.ndarray, clusters: np.nd
     similarities = cosine_similarity(outlier_embeddings, non_outlier_embeddings)
 
     new_clusters = clusters.copy()
+    k_actual = min(k, len(non_outlier_indices))  # Can't use more neighbors than we have
+
     for i, outlier_idx in enumerate(outlier_indices):
-        nearest_non_outlier_idx = non_outlier_indices[np.argmax(similarities[i])]
-        new_clusters[outlier_idx] = clusters[nearest_non_outlier_idx]
+        # Get top-k nearest neighbors
+        top_k_indices = np.argsort(similarities[i])[-k_actual:]
+        top_k_clusters = [clusters[non_outlier_indices[idx]] for idx in top_k_indices]
+
+        # Majority vote among k nearest neighbors
+        cluster_votes = Counter(top_k_clusters)
+        best_cluster = cluster_votes.most_common(1)[0][0]
+        new_clusters[outlier_idx] = best_cluster
 
     return new_clusters
 
@@ -256,6 +268,56 @@ def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10) -> np.
     return np.zeros(n_samples, dtype=int)
 
 
+def refine_cluster_assignments(embeddings: np.ndarray, clusters: np.ndarray, threshold: float = 0.7) -> np.ndarray:
+    """
+    Refine cluster assignments by checking if each point is closer to another cluster's centroid.
+    Only reassigns if the point is significantly closer to another cluster.
+    """
+    unique_clusters = [c for c in np.unique(clusters) if c >= 0]
+    if len(unique_clusters) <= 1:
+        return clusters
+
+    # Calculate cluster centroids
+    centroids = {}
+    for c in unique_clusters:
+        mask = clusters == c
+        centroids[c] = embeddings[mask].mean(axis=0)
+
+    centroid_matrix = np.array([centroids[c] for c in unique_clusters])
+    cluster_list = list(unique_clusters)
+
+    # Check each point
+    new_clusters = clusters.copy()
+    reassigned = 0
+
+    for i in range(len(embeddings)):
+        current_cluster = clusters[i]
+        if current_cluster == -1:
+            continue
+
+        # Calculate similarity to all centroids
+        point = embeddings[i].reshape(1, -1)
+        similarities = cosine_similarity(point, centroid_matrix)[0]
+
+        current_idx = cluster_list.index(current_cluster)
+        current_sim = similarities[current_idx]
+
+        # Find best cluster
+        best_idx = np.argmax(similarities)
+        best_sim = similarities[best_idx]
+        best_cluster = cluster_list[best_idx]
+
+        # Only reassign if significantly better fit (and not already in best cluster)
+        if best_cluster != current_cluster and best_sim > current_sim + 0.05:
+            new_clusters[i] = best_cluster
+            reassigned += 1
+
+    if reassigned > 0:
+        print(f"[DEBUG] Refinement: reassigned {reassigned} points to better-fitting clusters")
+
+    return new_clusters
+
+
 def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     """
     Cluster embeddings using HDBSCAN with UMAP dimensionality reduction.
@@ -263,10 +325,11 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     """
     n_samples = len(embeddings)
 
-    # Max cluster size threshold - clusters larger than this will be subdivided
-    max_cluster_size = max(300, n_samples // 10)  # 10% of dataset or 300, whichever is larger
+    # Tighter thresholds for better balance
+    max_cluster_size = max(250, n_samples // 12)  # ~8% of dataset or 250
     min_cluster_size = max(5, n_samples // 500)  # 0.2% of dataset
     min_cluster_size = min(min_cluster_size, 15)  # Cap at 15
+    tiny_cluster_threshold = max(3, min_cluster_size // 2)  # Clusters smaller than this get merged
 
     # Reduce dimensions with UMAP first
     n_components = min(50, n_samples - 1)
@@ -294,12 +357,12 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
 
     print(f"[DEBUG] HDBSCAN initial: {len(np.unique(all_clusters))} clusters, outliers: {np.sum(all_clusters == -1)}/{n_samples}")
 
-    # Reassign outliers first
+    # Reassign outliers using k-NN voting
     if np.sum(all_clusters == -1) > 0:
-        all_clusters = reassign_outliers_to_nearest_cluster(reduced_embeddings, all_clusters)
+        all_clusters = reassign_outliers_to_nearest_cluster(reduced_embeddings, all_clusters, k=5)
 
     # Recursively subdivide oversized clusters
-    max_iterations = 5  # Prevent infinite loops
+    max_iterations = 5
     for iteration in range(max_iterations):
         cluster_sizes = {}
         for c in np.unique(all_clusters):
@@ -323,10 +386,8 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
 
             unique_sub = set(sub_labels)
             if len(unique_sub) >= 2:
-                # Map sub-cluster labels to new global cluster IDs
                 for sub_id in unique_sub:
                     if sub_id == 0:
-                        # Keep first sub-cluster with original ID
                         continue
                     sub_mask = sub_labels == sub_id
                     global_indices = cluster_indices[sub_mask]
@@ -337,10 +398,44 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
 
         all_clusters = new_clusters
 
+    # Merge tiny clusters into nearest larger cluster
+    cluster_sizes = {c: np.sum(all_clusters == c) for c in np.unique(all_clusters)}
+    tiny_clusters = [c for c, size in cluster_sizes.items() if size < tiny_cluster_threshold]
+
+    if tiny_clusters:
+        print(f"[DEBUG] Merging {len(tiny_clusters)} tiny clusters (size < {tiny_cluster_threshold})")
+        # Calculate centroids for non-tiny clusters
+        large_clusters = [c for c in np.unique(all_clusters) if c not in tiny_clusters]
+        if large_clusters:
+            centroids = {}
+            for c in large_clusters:
+                mask = all_clusters == c
+                centroids[c] = reduced_embeddings[mask].mean(axis=0)
+
+            for tiny_c in tiny_clusters:
+                tiny_mask = all_clusters == tiny_c
+                tiny_centroid = reduced_embeddings[tiny_mask].mean(axis=0)
+
+                # Find nearest large cluster
+                best_cluster = large_clusters[0]
+                best_sim = -1
+                for lc in large_clusters:
+                    sim = np.dot(tiny_centroid, centroids[lc]) / (
+                        np.linalg.norm(tiny_centroid) * np.linalg.norm(centroids[lc]) + 1e-10
+                    )
+                    if sim > best_sim:
+                        best_sim = sim
+                        best_cluster = lc
+
+                all_clusters[tiny_mask] = best_cluster
+
     # Renumber clusters to be consecutive
     unique_clusters = sorted(np.unique(all_clusters))
     mapping = {old: new for new, old in enumerate(unique_clusters)}
     all_clusters = np.array([mapping[c] for c in all_clusters])
+
+    # Final refinement pass - reassign poorly-fit points
+    all_clusters = refine_cluster_assignments(reduced_embeddings, all_clusters)
 
     num_clusters = len(np.unique(all_clusters))
     print(f"[DEBUG] Final: {num_clusters} clusters")
