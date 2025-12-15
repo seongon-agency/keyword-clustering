@@ -111,7 +111,7 @@ function SmartSlider({
   const isHigh = percentage > 65;
 
   return (
-    <div className="space-y-2">
+    <div className="p-4 rounded-lg border border-default bg-canvas-default space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-fg-default">{label}</span>
         <span className="text-sm font-mono text-fg-muted bg-canvas-subtle px-2 py-0.5 rounded">
@@ -146,10 +146,10 @@ function SmartSlider({
 
       <div className="flex justify-between text-xs">
         <span className={isLow ? "text-fg-default font-medium" : "text-fg-muted"}>
-          ← {lowLabel}
+          {lowLabel}
         </span>
         <span className={isHigh ? "text-fg-default font-medium" : "text-fg-muted"}>
-          {highLabel} →
+          {highLabel}
         </span>
       </div>
 
@@ -179,9 +179,9 @@ function SmartToggle({
   offExplanation: string;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="p-4 rounded-lg border border-default bg-canvas-default space-y-3">
       <div className={`flex items-center justify-between ${disabled ? "opacity-50" : ""}`}>
-        <span className="text-sm text-fg-default">{label}</span>
+        <span className="text-sm font-medium text-fg-default">{label}</span>
         <button
           type="button"
           role="switch"
@@ -213,7 +213,6 @@ export default function ClusteringConfigPanel({
   compact = false,
 }: ClusteringConfigPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [hoveredPreset, setHoveredPreset] = useState<string | null>(null);
 
   const handlePresetChange = (preset: typeof PRESETS[0]) => {
     onChange(preset.config);
@@ -242,11 +241,6 @@ export default function ClusteringConfigPanel({
   };
 
   const currentPreset = getMatchingPreset();
-  const activePresetInfo = hoveredPreset
-    ? PRESETS.find(p => p.key === hoveredPreset)
-    : currentPreset
-    ? PRESETS.find(p => p.key === currentPreset)
-    : null;
 
   return (
     <div className="space-y-4">
@@ -260,34 +254,28 @@ export default function ClusteringConfigPanel({
 
       {/* Presets - Card style */}
       <div className="grid grid-cols-2 gap-2">
-        {PRESETS.map((preset) => (
-          <button
-            key={preset.key}
-            onClick={() => handlePresetChange(preset)}
-            onMouseEnter={() => setHoveredPreset(preset.key)}
-            onMouseLeave={() => setHoveredPreset(null)}
-            disabled={disabled}
-            className={`text-left p-3 rounded-lg border-2 transition-all ${
-              currentPreset === preset.key
-                ? "border-[var(--color-accent-emphasis)] bg-[var(--color-accent-subtle)]"
-                : "border-default bg-canvas-default hover:border-[var(--color-border-emphasis)] hover:bg-canvas-subtle"
-            } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-          >
-            <div className="mb-1">
-              <span className="font-medium text-sm text-fg-default">{preset.name}</span>
-            </div>
-            <p className="text-xs text-fg-muted leading-relaxed">{preset.shortDesc}</p>
-          </button>
-        ))}
+        {PRESETS.map((preset) => {
+          const isSelected = currentPreset === preset.key;
+          return (
+            <button
+              key={preset.key}
+              onClick={() => handlePresetChange(preset)}
+              disabled={disabled}
+              title={preset.longDesc}
+              className={`text-left p-3 rounded-lg border-2 transition-all ${
+                isSelected
+                  ? "border-[var(--color-accent-emphasis)] bg-[var(--color-accent-subtle)]"
+                  : "border-default bg-canvas-default hover:border-[var(--color-border-emphasis)] hover:bg-canvas-subtle"
+              } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            >
+              <div className="mb-1">
+                <span className="font-medium text-sm text-fg-default">{preset.name}</span>
+              </div>
+              <p className="text-xs text-fg-muted leading-relaxed">{preset.shortDesc}</p>
+            </button>
+          );
+        })}
       </div>
-
-      {/* Preset explanation */}
-      {activePresetInfo && (
-        <div className="px-3 py-2.5 bg-canvas-subtle rounded-lg text-xs text-fg-muted animate-fade-in">
-          <span className="font-medium text-fg-default">{activePresetInfo.name}:</span>{" "}
-          {activePresetInfo.longDesc}
-        </div>
-      )}
 
       {/* Custom indicator */}
       {currentPreset === null && (
@@ -309,7 +297,7 @@ export default function ClusteringConfigPanel({
 
       {/* Advanced options */}
       {showAdvanced && (
-        <div className="space-y-5 animate-fade-in">
+        <div className="space-y-3 animate-fade-in">
           {/* Tip box */}
           <div className="bg-[var(--color-accent-subtle)] border border-[var(--color-accent-muted)] rounded-lg p-3">
             <p className="text-xs text-fg-muted leading-relaxed">
@@ -370,7 +358,7 @@ export default function ClusteringConfigPanel({
           />
 
           {/* Toggles section */}
-          <div className="space-y-4 pt-3 border-t border-default">
+          <div className="space-y-3 pt-3 border-t border-default">
             <p className="text-xs font-medium text-fg-muted uppercase tracking-wide">Tùy chọn nâng cao</p>
 
             <SmartToggle
