@@ -373,16 +373,14 @@ export default function FileUpload({
         </div>
       </div>
 
-      {/* Clustering Settings - Only show when keywords are ready */}
-      {canProcess && (
-        <div className="mt-4 mb-4">
-          <ClusteringConfigPanel
-            config={clusteringConfig}
-            onChange={setClusteringConfig}
-            disabled={isProcessing}
-          />
-        </div>
-      )}
+      {/* Clustering Settings - Always visible */}
+      <div className="mt-4 mb-4">
+        <ClusteringConfigPanel
+          config={clusteringConfig}
+          onChange={setClusteringConfig}
+          disabled={isProcessing}
+        />
+      </div>
 
       {/* Process Button */}
       <button
