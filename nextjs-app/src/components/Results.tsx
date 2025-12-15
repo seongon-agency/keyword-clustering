@@ -15,14 +15,23 @@ import {
   BarChart3,
   Box,
   Layers,
+  RefreshCw,
+  ArrowRight,
+  Settings2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import type { ClusterResult } from "@/app/page";
 import ClusterScatterInteractive from "./ClusterScatterInteractive";
 import ClusterScatter3D from "./ClusterScatter3D";
+import ClusteringConfigPanel, { ClusteringConfig } from "./ClusteringConfigPanel";
 
 interface ResultsProps {
   data: ClusterResult;
+  onNewAnalysis: () => void;
+  onRecluster: (config: ClusteringConfig) => void;
+  currentConfig: ClusteringConfig;
+  onConfigChange: (config: ClusteringConfig) => void;
+  isProcessing: boolean;
 }
 
 const COLORS = [
@@ -253,10 +262,18 @@ const KeywordTableCompact = memo(function KeywordTableCompact({
 });
 
 
-export default function Results({ data }: ResultsProps) {
+export default function Results({
+  data,
+  onNewAnalysis,
+  onRecluster,
+  currentConfig,
+  onConfigChange,
+  isProcessing,
+}: ResultsProps) {
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [viewMode, setViewMode] = useState<"2d" | "3d">("3d");
+  const [showReclusterPanel, setShowReclusterPanel] = useState(false);
 
   const stats = useMemo(() => {
     const uniqueClusters = new Set(data.clusters);
@@ -312,6 +329,92 @@ export default function Results({ data }: ResultsProps) {
 
   return (
     <div className="space-y-2 animate-fade-in">
+      {/* Action Bar */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowReclusterPanel(!showReclusterPanel)}
+            disabled={isProcessing}
+            className={`gh-btn ${showReclusterPanel ? "gh-btn-primary" : ""}`}
+          >
+            {isProcessing ? (
+              <>
+                <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                <span>Re-clustering...</span>
+              </>
+            ) : (
+              <>
+                <Settings2 className="w-4 h-4" />
+                <span>Adjust & Re-cluster</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showReclusterPanel ? "rotate-180" : ""}`} />
+              </>
+            )}
+          </button>
+          {showReclusterPanel && !isProcessing && (
+            <span className="text-xs text-fg-muted">
+              Not happy with results? Adjust settings and try again
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onNewAnalysis}
+          disabled={isProcessing}
+          className="gh-btn group"
+        >
+          <span>New Analysis</span>
+          <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+        </button>
+      </div>
+
+      {/* Re-cluster Panel */}
+      {showReclusterPanel && (
+        <div className="gh-box p-4 animate-fade-in border-[var(--color-accent-emphasis)]">
+          <div className="flex items-start gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-3">
+                <RefreshCw className="w-4 h-4 text-accent" />
+                <h3 className="font-semibold text-fg-default text-sm">Re-cluster with Different Settings</h3>
+              </div>
+              <p className="text-xs text-fg-muted mb-4">
+                Adjust the settings below and click &quot;Re-cluster&quot; to try different groupings on the same keywords.
+              </p>
+              <ClusteringConfigPanel
+                config={currentConfig}
+                onChange={onConfigChange}
+                disabled={isProcessing}
+                compact={true}
+              />
+            </div>
+            <div className="flex flex-col gap-2 pt-8">
+              <button
+                onClick={() => onRecluster(currentConfig)}
+                disabled={isProcessing}
+                className="gh-btn gh-btn-primary whitespace-nowrap"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Re-cluster
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setShowReclusterPanel(false)}
+                disabled={isProcessing}
+                className="gh-btn gh-btn-sm text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Bar */}
       <div className="gh-box px-4 py-2.5">
         <div className="flex items-center justify-between">

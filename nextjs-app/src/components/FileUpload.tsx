@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload, FileSpreadsheet, X, Type, File, Wand2, Globe } from "lucide-react";
 import * as XLSX from "xlsx";
+import ClusteringConfigPanel, { ClusteringConfig } from "./ClusteringConfigPanel";
 
 interface FileUploadProps {
   onProcess: (keywords: string[]) => void;
@@ -11,6 +12,8 @@ interface FileUploadProps {
   disabled: boolean;
   language: "Vietnamese" | "English";
   setLanguage: (lang: "Vietnamese" | "English") => void;
+  clusteringConfig: ClusteringConfig;
+  setClusteringConfig: (config: ClusteringConfig) => void;
 }
 
 type InputMode = "paste" | "file";
@@ -51,6 +54,8 @@ export default function FileUpload({
   disabled,
   language,
   setLanguage,
+  clusteringConfig,
+  setClusteringConfig,
 }: FileUploadProps) {
   const [inputMode, setInputMode] = useState<InputMode>("paste");
   const [pasteText, setPasteText] = useState("");
@@ -367,6 +372,17 @@ export default function FileUpload({
           ))}
         </div>
       </div>
+
+      {/* Clustering Settings - Only show when keywords are ready */}
+      {canProcess && (
+        <div className="mt-4 mb-4">
+          <ClusteringConfigPanel
+            config={clusteringConfig}
+            onChange={setClusteringConfig}
+            disabled={isProcessing}
+          />
+        </div>
+      )}
 
       {/* Process Button */}
       <button

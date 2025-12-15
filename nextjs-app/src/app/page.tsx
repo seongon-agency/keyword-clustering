@@ -6,6 +6,7 @@ import FileUpload from "@/components/FileUpload";
 import Results from "@/components/Results";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import { AlertCircle, GitBranch, ArrowRight } from "lucide-react";
+import { ClusteringConfig, CLUSTERING_PRESETS } from "@/components/ClusteringConfigPanel";
 
 export interface ClusterResult {
   keywords: string[];
@@ -35,7 +36,21 @@ export default function Home() {
   const [startTime, setStartTime] = useState<number | undefined>(undefined);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleProcess = async (keywords: string[]) => {
+  // Clustering configuration state
+  const [clusteringConfig, setClusteringConfig] = useState<ClusteringConfig>(
+    CLUSTERING_PRESETS.recommended.config
+  );
+
+  // Store original keywords for re-clustering
+  const [originalKeywords, setOriginalKeywords] = useState<string[]>([]);
+
+  const handleProcess = async (keywords: string[], configOverride?: ClusteringConfig) => {
+    // Store keywords for potential re-clustering
+    if (keywords.length > 0) {
+      setOriginalKeywords(keywords);
+    }
+
+    const configToUse = configOverride || clusteringConfig;
     setIsProcessing(true);
     setError(null);
     setResults(null);
@@ -60,6 +75,7 @@ export default function Home() {
           keywords,
           language,
           clustering_blocks: CLUSTERING_BLOCKS,
+          clustering_config: configToUse,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -174,11 +190,13 @@ export default function Home() {
               <div className={isProcessing ? "lg:col-span-7" : "lg:col-span-12"}>
                 <div className="max-w-2xl mx-auto">
                   <FileUpload
-                    onProcess={handleProcess}
+                    onProcess={(keywords) => handleProcess(keywords)}
                     isProcessing={isProcessing}
                     disabled={false}
                     language={language}
                     setLanguage={setLanguage}
+                    clusteringConfig={clusteringConfig}
+                    setClusteringConfig={setClusteringConfig}
                   />
                 </div>
               </div>
@@ -207,19 +225,14 @@ export default function Home() {
             </div>
           ) : (
             // Results Layout
-            <div className="space-y-3">
-              {/* New Analysis Button */}
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setResults(null)}
-                  className="gh-btn group"
-                >
-                  <span>New Analysis</span>
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-                </button>
-              </div>
-              <Results data={results} />
-            </div>
+            <Results
+              data={results}
+              onNewAnalysis={() => setResults(null)}
+              onRecluster={(newConfig) => handleProcess(originalKeywords, newConfig)}
+              currentConfig={clusteringConfig}
+              onConfigChange={setClusteringConfig}
+              isProcessing={isProcessing}
+            />
           )}
         </div>
       </main>

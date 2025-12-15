@@ -63,11 +63,58 @@ app.add_middleware(
 )
 
 
+class ClusteringConfig(BaseModel):
+    """
+    User-friendly clustering configuration.
+    All parameters are on a 1-10 scale for simplicity.
+    """
+    # How strict should keyword grouping be? (1=loose, 10=very strict)
+    # Higher = only very similar keywords grouped together, more outliers
+    # Lower = keywords grouped more aggressively, fewer outliers
+    cluster_strictness: int = 5
+
+    # Minimum keywords required to form a cluster (actual number, not scale)
+    # Smaller = more small niche clusters allowed
+    # Larger = fewer but bigger clusters
+    min_keywords_per_cluster: int = 10
+
+    # How much should we prioritize cluster quality over coverage? (1-10)
+    # Higher = stricter quality, some keywords may be uncategorized
+    # Lower = more keywords assigned, but some clusters may be less coherent
+    quality_vs_coverage: int = 5
+
+
+# Preset configurations for common use cases
+CLUSTERING_PRESETS = {
+    "recommended": ClusteringConfig(
+        cluster_strictness=5,
+        min_keywords_per_cluster=10,
+        quality_vs_coverage=5
+    ),
+    "strict_quality": ClusteringConfig(
+        cluster_strictness=8,
+        min_keywords_per_cluster=15,
+        quality_vs_coverage=8
+    ),
+    "more_clusters": ClusteringConfig(
+        cluster_strictness=3,
+        min_keywords_per_cluster=5,
+        quality_vs_coverage=3
+    ),
+    "balanced": ClusteringConfig(
+        cluster_strictness=5,
+        min_keywords_per_cluster=8,
+        quality_vs_coverage=5
+    )
+}
+
+
 class ClusterRequest(BaseModel):
     keywords: List[str]
     api_key: Optional[str] = None
     language: str = "Vietnamese"
     clustering_blocks: int = 1000
+    clustering_config: Optional[ClusteringConfig] = None  # If None, use recommended
 
 
 class ClusterResponse(BaseModel):
@@ -391,35 +438,71 @@ def refine_cluster_assignments(embeddings: np.ndarray, clusters: np.ndarray, thr
     return new_clusters
 
 
-def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
+def translate_config_to_params(config: ClusteringConfig, n_samples: int) -> dict:
+    """
+    Translate user-friendly config (1-10 scales) to actual algorithm parameters.
+    """
+    # cluster_strictness (1-10) → UMAP min_dist and n_neighbors
+    # Higher strictness = more separation (higher min_dist) + tighter neighborhoods (lower n_neighbors)
+    strictness = config.cluster_strictness
+    umap_min_dist = 0.05 + (strictness - 1) * 0.05  # 1→0.05, 10→0.50
+    umap_n_neighbors = max(3, 15 - strictness)       # 1→14, 10→5
+
+    # min_keywords_per_cluster → directly to min_cluster_size
+    min_cluster_size = max(3, config.min_keywords_per_cluster)
+
+    # quality_vs_coverage (1-10) → HDBSCAN min_samples and outlier threshold
+    quality = config.quality_vs_coverage
+    hdbscan_min_samples = max(1, 1 + (quality - 1) // 2)  # 1→1, 5→3, 10→5
+    outlier_min_similarity = 0.1 + (quality - 1) * 0.045   # 1→0.10, 10→0.50
+
+    return {
+        'umap_min_dist': round(umap_min_dist, 2),
+        'umap_n_neighbors': umap_n_neighbors,
+        'min_cluster_size': min_cluster_size,
+        'hdbscan_min_samples': hdbscan_min_samples,
+        'outlier_min_similarity': round(outlier_min_similarity, 2),
+    }
+
+
+def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int, config: ClusteringConfig = None) -> np.ndarray:
     """
     Cluster embeddings using HDBSCAN with UMAP dimensionality reduction.
-    Recursively subdivides oversized clusters for balanced results.
+    Accepts user-friendly ClusteringConfig for parameter tuning.
     """
     n_samples = len(embeddings)
 
-    # Quality-focused thresholds
-    max_cluster_size = max(300, n_samples // 10)  # 10% of dataset or 300
-    min_cluster_size = max(8, n_samples // 200)   # 0.5% of dataset, minimum 8 for quality
-    min_cluster_size = min(min_cluster_size, 25)  # Cap at 25
-    tiny_cluster_threshold = max(5, min_cluster_size // 2)
+    # Use default config if none provided
+    if config is None:
+        config = CLUSTERING_PRESETS["recommended"]
 
-    # UMAP: Prioritize preserving semantic structure
-    n_components = min(30, n_samples - 1)  # Fewer components = less distortion
+    # Translate user-friendly config to algorithm parameters
+    params = translate_config_to_params(config, n_samples)
+    print(f"[DEBUG] Clustering config: strictness={config.cluster_strictness}, "
+          f"min_per_cluster={config.min_keywords_per_cluster}, quality={config.quality_vs_coverage}")
+    print(f"[DEBUG] Translated params: {params}")
+
+    # Thresholds
+    max_cluster_size = max(300, n_samples // 10)
+    min_cluster_size = params['min_cluster_size']
+    tiny_cluster_threshold = max(3, min_cluster_size // 2)
+
+    # UMAP with user-configured parameters
+    n_components = min(30, n_samples - 1)
     umap_reducer = UMAP(
         n_components=n_components,
-        n_neighbors=5,          # Very local structure - tight semantic neighborhoods
-        min_dist=0.25,          # Higher = more separation, preserves semantic gaps
-        metric='cosine',        # Cosine is best for text embeddings
+        n_neighbors=params['umap_n_neighbors'],
+        min_dist=params['umap_min_dist'],
+        metric='cosine',
         random_state=42,
         n_jobs=1
     )
     reduced_embeddings = umap_reducer.fit_transform(embeddings)
 
-    # HDBSCAN: Conservative settings for quality clusters
+    # HDBSCAN with user-configured parameters
     hdbscan_params = {
         'min_cluster_size': min_cluster_size,
-        'min_samples': 3,               # Higher = more conservative, better quality
+        'min_samples': params['hdbscan_min_samples'],
         'cluster_selection_epsilon': 0.0,
         'cluster_selection_method': 'eom',
         'metric': 'euclidean',
@@ -431,9 +514,12 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
 
     print(f"[DEBUG] HDBSCAN initial: {len(np.unique(all_clusters))} clusters, outliers: {np.sum(all_clusters == -1)}/{n_samples}")
 
-    # Reassign outliers using k-NN voting
+    # Reassign outliers using k-NN voting with quality threshold from config
     if np.sum(all_clusters == -1) > 0:
-        all_clusters = reassign_outliers_to_nearest_cluster(reduced_embeddings, all_clusters, k=5)
+        all_clusters = reassign_outliers_to_nearest_cluster(
+            reduced_embeddings, all_clusters, k=5,
+            min_similarity=params['outlier_min_similarity']
+        )
 
     # Recursively subdivide oversized clusters
     max_iterations = 10  # Increased iterations
@@ -707,7 +793,9 @@ def cluster_with_progress(request: ClusterRequest) -> Generator[str, None, None]
             "message": "Running HDBSCAN clustering..."
         })
 
-        clusters = cluster_with_hdbscan(embeddings, request.clustering_blocks)
+        # Use provided config or default to recommended
+        clustering_config = request.clustering_config or CLUSTERING_PRESETS["recommended"]
+        clusters = cluster_with_hdbscan(embeddings, request.clustering_blocks, config=clustering_config)
         num_clusters = len(np.unique(clusters))
 
         yield send_event("step", {
@@ -822,7 +910,8 @@ async def cluster_keywords(request: ClusterRequest):
 
         segmented = apply_vietnamese_word_segmentation(keywords, request.language)
         embeddings = get_openai_embeddings_parallel(segmented, api_key)
-        clusters = cluster_with_hdbscan(embeddings, request.clustering_blocks)
+        clustering_config = request.clustering_config or CLUSTERING_PRESETS["recommended"]
+        clusters = cluster_with_hdbscan(embeddings, request.clustering_blocks, config=clustering_config)
 
         try:
             cluster_labels = generate_cluster_labels_fast(keywords, clusters, api_key, request.language)
@@ -845,6 +934,67 @@ async def cluster_keywords(request: ClusterRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/clustering-config")
+async def get_clustering_config():
+    """
+    Get available clustering configuration options and presets.
+    Returns user-friendly descriptions for the frontend.
+    """
+    return {
+        "parameters": {
+            "cluster_strictness": {
+                "name": "Cluster Strictness",
+                "description": "How strict should keyword grouping be? Higher values mean only very similar keywords will be grouped together.",
+                "min": 1,
+                "max": 10,
+                "default": 5,
+                "low_label": "Loose (more keywords per cluster)",
+                "high_label": "Strict (only very similar keywords)"
+            },
+            "min_keywords_per_cluster": {
+                "name": "Minimum Keywords per Cluster",
+                "description": "The minimum number of keywords required to form a cluster. Smaller values allow more niche clusters.",
+                "min": 3,
+                "max": 50,
+                "default": 10,
+                "low_label": "Allow small clusters",
+                "high_label": "Require larger clusters"
+            },
+            "quality_vs_coverage": {
+                "name": "Quality vs Coverage",
+                "description": "Balance between cluster quality and keyword coverage. Higher values prioritize quality but may leave some keywords uncategorized.",
+                "min": 1,
+                "max": 10,
+                "default": 5,
+                "low_label": "More coverage (assign all keywords)",
+                "high_label": "Higher quality (some may be uncategorized)"
+            }
+        },
+        "presets": {
+            "recommended": {
+                "name": "Recommended",
+                "description": "Balanced settings that work well for most keyword sets",
+                "config": CLUSTERING_PRESETS["recommended"].model_dump()
+            },
+            "strict_quality": {
+                "name": "Strict Quality",
+                "description": "Prioritize cluster coherence - only group very similar keywords",
+                "config": CLUSTERING_PRESETS["strict_quality"].model_dump()
+            },
+            "more_clusters": {
+                "name": "More Clusters",
+                "description": "Create more granular clusters with smaller groups",
+                "config": CLUSTERING_PRESETS["more_clusters"].model_dump()
+            },
+            "balanced": {
+                "name": "Balanced",
+                "description": "Good balance between cluster size and quality",
+                "config": CLUSTERING_PRESETS["balanced"].model_dump()
+            }
+        }
+    }
 
 
 if __name__ == "__main__":
