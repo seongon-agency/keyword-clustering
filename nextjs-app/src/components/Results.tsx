@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, memo } from "react";
 import {
   Download,
   ChevronDown,
+  ChevronUp,
   FileSpreadsheet,
   Table,
   FileJson,
@@ -17,6 +18,8 @@ import {
   Layers,
   RefreshCw,
   ArrowRight,
+  Sliders,
+  Sparkles,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import type { ClusterResult } from "@/app/page";
@@ -272,6 +275,7 @@ export default function Results({
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [viewMode, setViewMode] = useState<"2d" | "3d">("3d");
+  const [showReclusterPanel, setShowReclusterPanel] = useState(false);
 
   const stats = useMemo(() => {
     const uniqueClusters = new Set(data.clusters);
@@ -512,38 +516,82 @@ export default function Results({
         </div>
       </div>
 
-      {/* Re-clustering Section */}
-      <div className="gh-box p-4">
-        <div className="flex items-start justify-between gap-6">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-3">
-              <RefreshCw className={`w-4 h-4 text-fg-muted ${isProcessing ? 'animate-spin' : ''}`} />
-              <span className="text-sm font-medium text-fg-default">Điều chỉnh & Phân cụm lại</span>
+      {/* Re-clustering Section - Collapsible Panel */}
+      <div className="gh-box overflow-hidden">
+        {/* Clickable Header */}
+        <button
+          onClick={() => setShowReclusterPanel(!showReclusterPanel)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-canvas-subtle transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${showReclusterPanel ? 'bg-[var(--color-accent-subtle)]' : 'bg-canvas-subtle'} transition-colors`}>
+              <Sliders className={`w-4 h-4 ${showReclusterPanel ? 'text-accent' : 'text-fg-muted'}`} />
             </div>
-            <ClusteringConfigPanel
-              config={currentConfig}
-              onChange={onConfigChange}
-              disabled={isProcessing}
-              compact={true}
-            />
+            <div className="text-left">
+              <h3 className="text-sm font-semibold text-fg-default">Điều chỉnh phân cụm</h3>
+              <p className="text-xs text-fg-muted">Không hài lòng với kết quả? Thay đổi cài đặt và phân cụm lại</p>
+            </div>
           </div>
-          <button
-            onClick={() => onRecluster(currentConfig)}
-            disabled={isProcessing}
-            className="gh-btn gh-btn-primary flex-shrink-0"
-          >
-            {isProcessing ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          <div className="flex items-center gap-2">
+            {isProcessing && (
+              <span className="flex items-center gap-1.5 text-xs text-accent">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 Đang xử lý...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4" />
-                Phân cụm lại
-              </>
+              </span>
             )}
-          </button>
+            <div className={`p-1 rounded transition-transform ${showReclusterPanel ? 'rotate-180' : ''}`}>
+              <ChevronDown className="w-4 h-4 text-fg-muted" />
+            </div>
+          </div>
+        </button>
+
+        {/* Expandable Content */}
+        <div className={`transition-all duration-300 ease-in-out ${showReclusterPanel ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+          <div className="border-t border-default">
+            {/* Tip Banner */}
+            <div className="px-4 py-3 bg-[var(--color-accent-subtle)] border-b border-[var(--color-accent-muted)]">
+              <div className="flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-fg-default leading-relaxed">
+                  <strong>Mẹo:</strong> Chọn một preset bên dưới hoặc tùy chỉnh chi tiết. Dữ liệu embeddings đã được lưu nên việc phân cụm lại sẽ nhanh hơn nhiều.
+                </p>
+              </div>
+            </div>
+
+            {/* Config Panel */}
+            <div className="p-4">
+              <ClusteringConfigPanel
+                config={currentConfig}
+                onChange={onConfigChange}
+                disabled={isProcessing}
+                compact={true}
+              />
+            </div>
+
+            {/* Action Footer */}
+            <div className="px-4 py-3 bg-canvas-subtle border-t border-default flex items-center justify-between">
+              <p className="text-xs text-fg-muted">
+                Thay đổi sẽ được áp dụng khi bấm &quot;Phân cụm lại&quot;
+              </p>
+              <button
+                onClick={() => onRecluster(currentConfig)}
+                disabled={isProcessing}
+                className="gh-btn gh-btn-primary"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Phân cụm lại
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
