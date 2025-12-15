@@ -191,55 +191,46 @@ export default function ClusteringConfigPanel({
 
   const currentPreset = getMatchingPreset();
 
-  // Compact mode for re-clustering in results view
+  // Compact mode for re-clustering in results view - side by side layout
   if (compact) {
     return (
-      <div className="space-y-4">
-        {/* Preset Grid - More visual */}
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(CLUSTERING_PRESETS).map(([key, preset]) => (
-            <button
-              key={key}
-              onClick={() => handlePresetChange(key)}
-              disabled={disabled}
-              className={`relative p-3 rounded-lg border-2 transition-all ${
-                currentPreset === key
-                  ? "bg-[var(--color-accent-subtle)] border-[var(--color-accent-emphasis)] shadow-md"
-                  : "bg-canvas-subtle border-transparent hover:border-[var(--color-border-default)] hover:bg-canvas-default"
-              } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-            >
-              <div className="flex flex-col items-center gap-1.5">
-                <span className={currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-muted"}>
-                  {preset.icon}
-                </span>
-                <span className={`text-xs font-medium ${currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-default"}`}>
-                  {preset.name}
-                </span>
-              </div>
-              {currentPreset === key && (
-                <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[var(--color-accent-emphasis)]" />
-              )}
-            </button>
-          ))}
+      <div className="flex gap-6">
+        {/* Left: Presets */}
+        <div className="flex-shrink-0">
+          <p className="text-[10px] text-fg-muted mb-2 font-medium uppercase tracking-wide">Quick Presets</p>
+          <div className="grid grid-cols-2 gap-1.5 w-[200px]">
+            {Object.entries(CLUSTERING_PRESETS).map(([key, preset]) => (
+              <button
+                key={key}
+                onClick={() => handlePresetChange(key)}
+                disabled={disabled}
+                className={`relative p-2 rounded-md border transition-all ${
+                  currentPreset === key
+                    ? "bg-[var(--color-accent-subtle)] border-[var(--color-accent-emphasis)]"
+                    : "bg-canvas-subtle border-transparent hover:border-[var(--color-border-default)]"
+                } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className={`${currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-muted"}`}>
+                    {preset.icon}
+                  </span>
+                  <span className={`text-[11px] font-medium ${currentPreset === key ? "text-[var(--color-accent-fg)]" : "text-fg-default"}`}>
+                    {preset.name}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Advanced toggle */}
-        <button
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          disabled={disabled}
-          className="flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg-default transition-colors w-full justify-center py-1"
-        >
-          {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          {showAdvanced ? "Hide fine-tuning" : "Fine-tune settings"}
-        </button>
-
-        {showAdvanced && (
-          <div className="space-y-5 pt-2 animate-fade-in">
+        {/* Right: Fine-tune sliders */}
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] text-fg-muted mb-2 font-medium uppercase tracking-wide">Fine-tune</p>
+          <div className="grid grid-cols-3 gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Layers className="w-4 h-4 text-fg-muted" />
-                <span className="text-xs font-medium text-fg-default">Granularity</span>
-                <Tooltip text="How fine-grained should clusters be? Lower = fewer large clusters, Higher = many small clusters" />
+              <div className="flex items-center gap-1.5 mb-2">
+                <Layers className="w-3.5 h-3.5 text-fg-muted" />
+                <span className="text-[11px] font-medium text-fg-default">Granularity</span>
               </div>
               <VisualSlider
                 value={config.granularity}
@@ -247,19 +238,16 @@ export default function ClusteringConfigPanel({
                 min={1}
                 max={10}
                 disabled={disabled}
-                leftIcon={<LayoutGrid className="w-3 h-3" />}
-                rightIcon={<Grid3X3 className="w-3 h-3" />}
-                leftLabel="Few large"
-                rightLabel="Many small"
+                leftLabel="Few"
+                rightLabel="Many"
                 accentColor="accent"
               />
             </div>
 
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Target className="w-4 h-4 text-fg-muted" />
-                <span className="text-xs font-medium text-fg-default">Min Keywords</span>
-                <Tooltip text="Minimum keywords required to form a cluster" />
+              <div className="flex items-center gap-1.5 mb-2">
+                <Target className="w-3.5 h-3.5 text-fg-muted" />
+                <span className="text-[11px] font-medium text-fg-default">Min Size</span>
               </div>
               <VisualSlider
                 value={config.min_keywords_per_cluster}
@@ -274,10 +262,9 @@ export default function ClusteringConfigPanel({
             </div>
 
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="w-4 h-4 text-fg-muted" />
-                <span className="text-xs font-medium text-fg-default">Coherence</span>
-                <Tooltip text="How similar must keywords be? Higher = stricter grouping" />
+              <div className="flex items-center gap-1.5 mb-2">
+                <Sparkles className="w-3.5 h-3.5 text-fg-muted" />
+                <span className="text-[11px] font-medium text-fg-default">Coherence</span>
               </div>
               <VisualSlider
                 value={config.cluster_coherence}
@@ -291,7 +278,7 @@ export default function ClusteringConfigPanel({
               />
             </div>
           </div>
-        )}
+        </div>
       </div>
     );
   }

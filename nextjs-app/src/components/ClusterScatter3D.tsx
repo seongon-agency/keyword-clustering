@@ -196,53 +196,52 @@ export default function ClusterScatter3D({
         />
       </div>
 
-      {/* Separate Legend Bar */}
-      <div className="bg-canvas-default border-t border-default rounded-b-md">
-        {/* Legend Toggle */}
-        <button
-          onClick={() => setShowLegend(!showLegend)}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] text-fg-muted hover:text-fg-default hover:bg-canvas-subtle transition-colors"
-        >
-          {showLegend ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-          {showLegend ? "Hide legend" : `Show legend (${clusterInfo.length} clusters)`}
-        </button>
+      {/* Compact Legend Bar */}
+      <div className="bg-canvas-default border-t border-default rounded-b-md px-2 py-1.5">
+        <div className="flex items-center gap-2">
+          {/* Toggle */}
+          <button
+            onClick={() => setShowLegend(!showLegend)}
+            className="flex items-center gap-1 text-[10px] text-fg-muted hover:text-fg-default transition-colors flex-shrink-0"
+          >
+            {showLegend ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+            <span className="font-medium">{clusterInfo.length}</span>
+          </button>
 
-        {/* Scrollable Legend */}
-        {showLegend && (
-          <div className="px-2 pb-2 max-h-[72px] overflow-y-auto">
-            <div className="flex flex-wrap gap-1.5">
-              {clusterInfo.map((cluster) => (
-                <button
-                  key={cluster.id}
-                  onClick={() => onClusterSelect?.(selectedCluster === cluster.id ? null : cluster.id)}
-                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] transition-all ${
-                    selectedCluster === cluster.id
-                      ? "ring-2 ring-offset-1 ring-[var(--color-accent-emphasis)]"
-                      : selectedCluster !== null
-                      ? "opacity-40 hover:opacity-70"
-                      : "hover:bg-canvas-subtle"
-                  }`}
-                  style={{
-                    backgroundColor: `${cluster.color}15`,
-                    borderLeft: `3px solid ${cluster.color}`,
-                  }}
-                  title={`${cluster.label} (${cluster.count} keywords)`}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: cluster.color }}
-                  />
-                  <span className="text-fg-default font-medium truncate max-w-[100px]">
-                    {cluster.label}
-                  </span>
-                  <span className="text-fg-muted">
-                    {cluster.count}
-                  </span>
-                </button>
-              ))}
+          {/* Horizontal scrollable legend */}
+          {showLegend && (
+            <div className="flex-1 overflow-x-auto scrollbar-thin">
+              <div className="flex gap-1">
+                {clusterInfo.map((cluster) => (
+                  <button
+                    key={cluster.id}
+                    onClick={() => onClusterSelect?.(selectedCluster === cluster.id ? null : cluster.id)}
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap transition-all flex-shrink-0 ${
+                      selectedCluster === cluster.id
+                        ? "ring-1 ring-[var(--color-accent-emphasis)]"
+                        : selectedCluster !== null
+                        ? "opacity-30 hover:opacity-60"
+                        : "hover:opacity-80"
+                    }`}
+                    style={{
+                      backgroundColor: `${cluster.color}20`,
+                    }}
+                    title={`${cluster.label} (${cluster.count} keywords)`}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: cluster.color }}
+                    />
+                    <span className="text-fg-default font-medium max-w-[80px] truncate">
+                      {cluster.label}
+                    </span>
+                    <span className="text-fg-muted">{cluster.count}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
