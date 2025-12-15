@@ -231,13 +231,17 @@ def force_bisect(embeddings: np.ndarray, max_cluster_size: int, min_cluster_size
     n_samples = len(embeddings)
     labels = np.zeros(n_samples, dtype=int)
 
+    print(f"[DEBUG] force_bisect called: n_samples={n_samples}, max_cluster_size={max_cluster_size}")
+
     if n_samples <= max_cluster_size:
+        print(f"[DEBUG] force_bisect: Already under max size, returning all zeros")
         return labels
 
     # Queue of (indices, cluster_id) to process
     next_cluster_id = 0
     queue = [(np.arange(n_samples), next_cluster_id)]
     next_cluster_id += 1
+    bisect_count = 0
 
     while queue:
         indices, current_id = queue.pop(0)
@@ -246,6 +250,7 @@ def force_bisect(embeddings: np.ndarray, max_cluster_size: int, min_cluster_size
             labels[indices] = current_id
             continue
 
+        bisect_count += 1
         # Bisect this cluster
         cluster_embeddings = embeddings[indices]
 
@@ -256,7 +261,8 @@ def force_bisect(embeddings: np.ndarray, max_cluster_size: int, min_cluster_size
                 reducer = UMAP(n_components=n_comp, n_neighbors=min(5, len(indices)-1),
                               min_dist=0.0, metric='euclidean', random_state=42, n_jobs=1)
                 reduced = reducer.fit_transform(cluster_embeddings)
-            except:
+            except Exception as e:
+                print(f"[DEBUG] UMAP failed in bisect: {e}, using raw embeddings")
                 reduced = cluster_embeddings
         else:
             reduced = cluster_embeddings
@@ -268,9 +274,11 @@ def force_bisect(embeddings: np.ndarray, max_cluster_size: int, min_cluster_size
         group0_indices = indices[bisect_labels == 0]
         group1_indices = indices[bisect_labels == 1]
 
+        print(f"[DEBUG] Bisect #{bisect_count}: {len(indices)} -> [{len(group0_indices)}, {len(group1_indices)}]")
+
         # Check if split is too imbalanced (one side < min_cluster_size)
         if len(group0_indices) < min_cluster_size or len(group1_indices) < min_cluster_size:
-            # Can't split further, keep as is
+            print(f"[DEBUG] Bisect failed (too imbalanced), keeping as cluster {current_id}")
             labels[indices] = current_id
             continue
 
@@ -279,61 +287,37 @@ def force_bisect(embeddings: np.ndarray, max_cluster_size: int, min_cluster_size
         queue.append((group1_indices, next_cluster_id))
         next_cluster_id += 1
 
+    # Final stats
+    unique_labels = np.unique(labels)
+    final_sizes = {lbl: np.sum(labels == lbl) for lbl in unique_labels}
+    print(f"[DEBUG] force_bisect done: {len(unique_labels)} clusters, sizes={sorted(final_sizes.values(), reverse=True)}")
+
     return labels
 
 
 def subdivide_cluster(embeddings: np.ndarray, min_cluster_size: int = 10, max_cluster_size: int = 300) -> np.ndarray:
     """
-    Attempt to subdivide a single cluster into smaller sub-clusters.
-    Uses HDBSCAN first, falls back to recursive bisection if HDBSCAN can't split.
+    Subdivide a cluster into smaller sub-clusters using recursive bisection.
+    Guarantees all resulting sub-clusters are under max_cluster_size.
     """
     n_samples = len(embeddings)
     if n_samples < min_cluster_size * 2:
+        print(f"[DEBUG] Cluster too small to subdivide: {n_samples} < {min_cluster_size * 2}")
         return np.zeros(n_samples, dtype=int)
 
-    n_components = min(30, n_samples - 1)
-    n_neighbors = min(5, n_samples - 1)
+    if n_samples <= max_cluster_size:
+        print(f"[DEBUG] Cluster already under max size: {n_samples} <= {max_cluster_size}")
+        return np.zeros(n_samples, dtype=int)
 
-    try:
-        umap_reducer = UMAP(
-            n_components=n_components,
-            n_neighbors=n_neighbors,
-            min_dist=0.0,
-            metric='euclidean',
-            random_state=42,
-            n_jobs=1
-        )
-        reduced = umap_reducer.fit_transform(embeddings)
+    print(f"[DEBUG] Subdividing {n_samples} points with force_bisect (max_size={max_cluster_size})")
 
-        # Try HDBSCAN first
-        sub_clusterer = hdbscan.HDBSCAN(
-            min_cluster_size=min_cluster_size,
-            min_samples=2,
-            cluster_selection_epsilon=0.0,
-            cluster_selection_method='eom',
-            metric='euclidean'
-        )
-        sub_labels = sub_clusterer.fit_predict(reduced)
+    # Use recursive bisection directly - guaranteed balanced results
+    sub_labels = force_bisect(embeddings, max_cluster_size, min_cluster_size)
 
-        unique_labels = set(sub_labels) - {-1}
-        if len(unique_labels) >= 2:
-            if np.sum(sub_labels == -1) > 0:
-                sub_labels = reassign_outliers_to_nearest_cluster(reduced, sub_labels)
-            print(f"[DEBUG] HDBSCAN subdivided into {len(unique_labels)} sub-clusters")
-            return sub_labels
-
-        # HDBSCAN failed - use recursive bisection for guaranteed balanced splits
-        print(f"[DEBUG] HDBSCAN couldn't split {n_samples} pts, using recursive bisection")
-        sub_labels = force_bisect(reduced, max_cluster_size, min_cluster_size)
-
-        num_sub = len(np.unique(sub_labels))
-        print(f"[DEBUG] Bisection created {num_sub} sub-clusters")
-        return sub_labels
-
-    except Exception as e:
-        print(f"[DEBUG] Subdivision failed: {e}")
-
-    return np.zeros(n_samples, dtype=int)
+    num_sub = len(np.unique(sub_labels))
+    sizes = [np.sum(sub_labels == lbl) for lbl in np.unique(sub_labels)]
+    print(f"[DEBUG] force_bisect created {num_sub} sub-clusters, sizes: {sorted(sizes, reverse=True)}")
+    return sub_labels
 
 
 def refine_cluster_assignments(embeddings: np.ndarray, clusters: np.ndarray, threshold: float = 0.7) -> np.ndarray:
@@ -399,12 +383,13 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
     min_cluster_size = min(min_cluster_size, 15)  # Cap at 15
     tiny_cluster_threshold = max(3, min_cluster_size // 2)  # Clusters smaller than this get merged
 
-    # Reduce dimensions with UMAP first
+    # Reduce dimensions with UMAP
+    # Key: min_dist > 0 prevents packing points too tightly, preserving semantic gaps
     n_components = min(50, n_samples - 1)
     umap_reducer = UMAP(
         n_components=n_components,
-        n_neighbors=10,
-        min_dist=0.0,
+        n_neighbors=8,          # Lower = more local structure preserved
+        min_dist=0.1,           # KEY CHANGE: spread points out to preserve semantic gaps
         metric='cosine',
         random_state=42,
         n_jobs=1
@@ -430,17 +415,22 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
         all_clusters = reassign_outliers_to_nearest_cluster(reduced_embeddings, all_clusters, k=5)
 
     # Recursively subdivide oversized clusters
-    max_iterations = 5
+    max_iterations = 10  # Increased iterations
     for iteration in range(max_iterations):
         cluster_sizes = {}
         for c in np.unique(all_clusters):
             cluster_sizes[c] = np.sum(all_clusters == c)
 
+        # Print current cluster size distribution
+        sizes_sorted = sorted(cluster_sizes.values(), reverse=True)
+        print(f"[DEBUG] Iteration {iteration}: Cluster sizes (top 5): {sizes_sorted[:5]}, max_allowed: {max_cluster_size}")
+
         oversized = [c for c, size in cluster_sizes.items() if size > max_cluster_size]
         if not oversized:
+            print(f"[DEBUG] No oversized clusters, done subdividing")
             break
 
-        print(f"[DEBUG] Iteration {iteration + 1}: Subdividing {len(oversized)} oversized clusters")
+        print(f"[DEBUG] Found {len(oversized)} oversized clusters to subdivide")
 
         next_cluster_id = max(all_clusters) + 1
         new_clusters = all_clusters.copy()
@@ -450,19 +440,32 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int) -> np.ndarray:
             cluster_indices = np.where(cluster_mask)[0]
             cluster_embeddings = reduced_embeddings[cluster_indices]
 
+            print(f"[DEBUG] Subdividing cluster {cluster_id} with {len(cluster_indices)} points...")
             sub_labels = subdivide_cluster(cluster_embeddings, min_cluster_size=min_cluster_size, max_cluster_size=max_cluster_size)
 
             unique_sub = set(sub_labels)
+            print(f"[DEBUG] subdivide_cluster returned {len(unique_sub)} unique labels: {unique_sub}")
+
             if len(unique_sub) >= 2:
+                # Track sizes of each sub-cluster
+                sub_sizes = {sid: np.sum(sub_labels == sid) for sid in unique_sub}
+                print(f"[DEBUG] Sub-cluster sizes: {sub_sizes}")
+
                 for sub_id in unique_sub:
                     if sub_id == 0:
+                        # sub_id 0 keeps original cluster_id, but verify its size
+                        size_0 = np.sum(sub_labels == 0)
+                        print(f"[DEBUG] sub_id=0 has {size_0} points, keeping in cluster {cluster_id}")
                         continue
                     sub_mask = sub_labels == sub_id
                     global_indices = cluster_indices[sub_mask]
                     new_clusters[global_indices] = next_cluster_id
+                    print(f"[DEBUG] sub_id={sub_id} ({len(global_indices)} pts) -> new cluster {next_cluster_id}")
                     next_cluster_id += 1
 
                 print(f"[DEBUG] Cluster {cluster_id} ({len(cluster_indices)} pts) -> {len(unique_sub)} sub-clusters")
+            else:
+                print(f"[DEBUG] WARNING: subdivide_cluster returned only 1 unique label, cluster NOT split!")
 
         all_clusters = new_clusters
 
