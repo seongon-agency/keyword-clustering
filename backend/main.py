@@ -65,46 +65,48 @@ app.add_middleware(
 
 class ClusteringConfig(BaseModel):
     """
-    User-friendly clustering configuration.
-    All parameters are on a 1-10 scale for simplicity.
+    User-friendly clustering configuration with high-impact parameters.
     """
-    # How strict should keyword grouping be? (1=loose, 10=very strict)
-    # Higher = only very similar keywords grouped together, more outliers
-    # Lower = keywords grouped more aggressively, fewer outliers
-    cluster_strictness: int = 5
+    # Target number of clusters (0 = auto-detect)
+    # This is the most intuitive parameter for users
+    target_clusters: int = 0  # 0 means auto
 
-    # Minimum keywords required to form a cluster (actual number, not scale)
-    # Smaller = more small niche clusters allowed
-    # Larger = fewer but bigger clusters
-    min_keywords_per_cluster: int = 10
+    # Granularity: How fine-grained should clusters be? (1=few large, 10=many small)
+    # This has the biggest visual impact on results
+    granularity: int = 5
 
-    # How much should we prioritize cluster quality over coverage? (1-10)
-    # Higher = stricter quality, some keywords may be uncategorized
-    # Lower = more keywords assigned, but some clusters may be less coherent
-    quality_vs_coverage: int = 5
+    # Minimum keywords required to form a cluster
+    min_keywords_per_cluster: int = 5
+
+    # Cluster coherence: How similar must keywords be? (1=loose, 10=strict)
+    cluster_coherence: int = 5
 
 
-# Preset configurations for common use cases
+# Preset configurations - make them VERY different for visible impact
 CLUSTERING_PRESETS = {
     "recommended": ClusteringConfig(
-        cluster_strictness=5,
-        min_keywords_per_cluster=10,
-        quality_vs_coverage=5
+        target_clusters=0,
+        granularity=5,
+        min_keywords_per_cluster=8,
+        cluster_coherence=5
+    ),
+    "few_large": ClusteringConfig(
+        target_clusters=0,
+        granularity=2,
+        min_keywords_per_cluster=20,
+        cluster_coherence=3
+    ),
+    "many_small": ClusteringConfig(
+        target_clusters=0,
+        granularity=9,
+        min_keywords_per_cluster=5,
+        cluster_coherence=7
     ),
     "strict_quality": ClusteringConfig(
-        cluster_strictness=8,
-        min_keywords_per_cluster=15,
-        quality_vs_coverage=8
-    ),
-    "more_clusters": ClusteringConfig(
-        cluster_strictness=3,
-        min_keywords_per_cluster=5,
-        quality_vs_coverage=3
-    ),
-    "balanced": ClusteringConfig(
-        cluster_strictness=5,
-        min_keywords_per_cluster=8,
-        quality_vs_coverage=5
+        target_clusters=0,
+        granularity=6,
+        min_keywords_per_cluster=10,
+        cluster_coherence=9
     )
 }
 
@@ -440,28 +442,52 @@ def refine_cluster_assignments(embeddings: np.ndarray, clusters: np.ndarray, thr
 
 def translate_config_to_params(config: ClusteringConfig, n_samples: int) -> dict:
     """
-    Translate user-friendly config (1-10 scales) to actual algorithm parameters.
+    Translate user-friendly config to actual algorithm parameters.
+    Designed to produce VISIBLY DIFFERENT results across the parameter range.
     """
-    # cluster_strictness (1-10) → UMAP min_dist and n_neighbors
-    # Higher strictness = more separation (higher min_dist) + tighter neighborhoods (lower n_neighbors)
-    strictness = config.cluster_strictness
-    umap_min_dist = 0.05 + (strictness - 1) * 0.05  # 1→0.05, 10→0.50
-    umap_n_neighbors = max(3, 15 - strictness)       # 1→14, 10→5
+    granularity = config.granularity
+    coherence = config.cluster_coherence
 
-    # min_keywords_per_cluster → directly to min_cluster_size
+    # GRANULARITY (1-10) - This is the most impactful parameter
+    # Controls: max_cluster_size, UMAP n_neighbors, and effectively number of clusters
+    # 1 = few large clusters, 10 = many small clusters
+
+    # max_cluster_size: determines when clusters get subdivided
+    # granularity 1 → 50% of dataset, granularity 10 → 5% of dataset
+    max_cluster_pct = 0.50 - (granularity - 1) * 0.05  # 1→50%, 10→5%
+    max_cluster_size = max(50, int(n_samples * max_cluster_pct))
+
+    # UMAP n_neighbors: lower = more local structure = more clusters
+    # granularity 1 → 30 neighbors (global), granularity 10 → 5 neighbors (local)
+    umap_n_neighbors = max(5, 30 - (granularity - 1) * 3)  # 1→30, 10→3
+
+    # UMAP min_dist: higher = more spread = easier to find cluster boundaries
+    # granularity 1 → 0.0 (packed), granularity 10 → 0.5 (spread)
+    umap_min_dist = (granularity - 1) * 0.055  # 1→0.0, 10→0.5
+
+    # COHERENCE (1-10) - Controls cluster quality/tightness
+    # 1 = loose grouping (more keywords assigned), 10 = strict (only very similar)
+
+    # HDBSCAN min_samples: higher = more conservative clustering
+    hdbscan_min_samples = max(1, coherence // 2 + 1)  # 1→1, 5→3, 10→6
+
+    # Outlier similarity threshold: higher = stricter about what gets assigned
+    outlier_min_similarity = 0.05 + (coherence - 1) * 0.05  # 1→0.05, 10→0.50
+
+    # min_cluster_size from user config
     min_cluster_size = max(3, config.min_keywords_per_cluster)
 
-    # quality_vs_coverage (1-10) → HDBSCAN min_samples and outlier threshold
-    quality = config.quality_vs_coverage
-    hdbscan_min_samples = max(1, 1 + (quality - 1) // 2)  # 1→1, 5→3, 10→5
-    outlier_min_similarity = 0.1 + (quality - 1) * 0.045   # 1→0.10, 10→0.50
+    # Target clusters (if specified by user)
+    target_clusters = config.target_clusters if config.target_clusters > 0 else None
 
     return {
         'umap_min_dist': round(umap_min_dist, 2),
         'umap_n_neighbors': umap_n_neighbors,
         'min_cluster_size': min_cluster_size,
+        'max_cluster_size': max_cluster_size,
         'hdbscan_min_samples': hdbscan_min_samples,
         'outlier_min_similarity': round(outlier_min_similarity, 2),
+        'target_clusters': target_clusters,
     }
 
 
@@ -478,12 +504,12 @@ def cluster_with_hdbscan(embeddings: np.ndarray, n_blocks: int, config: Clusteri
 
     # Translate user-friendly config to algorithm parameters
     params = translate_config_to_params(config, n_samples)
-    print(f"[DEBUG] Clustering config: strictness={config.cluster_strictness}, "
-          f"min_per_cluster={config.min_keywords_per_cluster}, quality={config.quality_vs_coverage}")
+    print(f"[DEBUG] Clustering config: granularity={config.granularity}, "
+          f"min_per_cluster={config.min_keywords_per_cluster}, coherence={config.cluster_coherence}")
     print(f"[DEBUG] Translated params: {params}")
 
-    # Thresholds
-    max_cluster_size = max(300, n_samples // 10)
+    # Thresholds from config
+    max_cluster_size = params['max_cluster_size']
     min_cluster_size = params['min_cluster_size']
     tiny_cluster_threshold = max(3, min_cluster_size // 2)
 
@@ -944,32 +970,32 @@ async def get_clustering_config():
     """
     return {
         "parameters": {
-            "cluster_strictness": {
-                "name": "Cluster Strictness",
-                "description": "How strict should keyword grouping be? Higher values mean only very similar keywords will be grouped together.",
+            "granularity": {
+                "name": "Cluster Granularity",
+                "description": "How fine-grained should the clusters be? Lower = fewer large clusters, Higher = many smaller clusters.",
                 "min": 1,
                 "max": 10,
                 "default": 5,
-                "low_label": "Loose (more keywords per cluster)",
-                "high_label": "Strict (only very similar keywords)"
+                "low_label": "Few large clusters",
+                "high_label": "Many small clusters"
             },
             "min_keywords_per_cluster": {
                 "name": "Minimum Keywords per Cluster",
                 "description": "The minimum number of keywords required to form a cluster. Smaller values allow more niche clusters.",
                 "min": 3,
-                "max": 50,
-                "default": 10,
-                "low_label": "Allow small clusters",
-                "high_label": "Require larger clusters"
+                "max": 30,
+                "default": 8,
+                "low_label": "Allow small clusters (3+)",
+                "high_label": "Require larger clusters (30+)"
             },
-            "quality_vs_coverage": {
-                "name": "Quality vs Coverage",
-                "description": "Balance between cluster quality and keyword coverage. Higher values prioritize quality but may leave some keywords uncategorized.",
+            "cluster_coherence": {
+                "name": "Cluster Coherence",
+                "description": "How similar must keywords be to belong to the same cluster? Higher = stricter grouping, more outliers.",
                 "min": 1,
                 "max": 10,
                 "default": 5,
-                "low_label": "More coverage (assign all keywords)",
-                "high_label": "Higher quality (some may be uncategorized)"
+                "low_label": "Loose (include more)",
+                "high_label": "Strict (only similar)"
             }
         },
         "presets": {
@@ -978,20 +1004,20 @@ async def get_clustering_config():
                 "description": "Balanced settings that work well for most keyword sets",
                 "config": CLUSTERING_PRESETS["recommended"].model_dump()
             },
+            "few_large": {
+                "name": "Few Large Clusters",
+                "description": "Create fewer, broader clusters with more keywords each",
+                "config": CLUSTERING_PRESETS["few_large"].model_dump()
+            },
+            "many_small": {
+                "name": "Many Small Clusters",
+                "description": "Create more granular clusters with smaller, focused groups",
+                "config": CLUSTERING_PRESETS["many_small"].model_dump()
+            },
             "strict_quality": {
                 "name": "Strict Quality",
                 "description": "Prioritize cluster coherence - only group very similar keywords",
                 "config": CLUSTERING_PRESETS["strict_quality"].model_dump()
-            },
-            "more_clusters": {
-                "name": "More Clusters",
-                "description": "Create more granular clusters with smaller groups",
-                "config": CLUSTERING_PRESETS["more_clusters"].model_dump()
-            },
-            "balanced": {
-                "name": "Balanced",
-                "description": "Good balance between cluster size and quality",
-                "config": CLUSTERING_PRESETS["balanced"].model_dump()
             }
         }
     }
